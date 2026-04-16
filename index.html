@@ -352,12 +352,15 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--ink);min-
     <div class="login-logo"><div class="dot"></div>EBIT-Q</div>
     <div class="login-tagline">FMC DataLab — Diagnóstico de Madurez Organizacional</div>
     <div id="ls1">
-      <div class="login-label">Correo electrónico</div>
-      <input class="login-input" id="lemail" value="juan.consultor@fmcdatalab.co">
+      <div class="login-label">Usuario</div>
+      <input class="login-input" id="lemail" placeholder="Ingresa tu usuario" autocomplete="username" onkeydown="if(event.key==='Enter')goMFA()">
       <div class="login-label">Contraseña</div>
-      <input class="login-input" type="password" value="••••••••">
+      <input class="login-input" type="password" id="lpwd" placeholder="Ingresa tu contraseña" autocomplete="current-password" onkeydown="if(event.key==='Enter')goMFA()">
+      <div id="login-error" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 12px;font-size:12px;color:#dc2626;margin-bottom:8px;">
+        ⚠ Usuario o contraseña incorrectos. Intenta de nuevo.
+      </div>
       <button class="login-btn" onclick="goMFA()">Continuar →</button>
-      <div class="login-note">Acceso protegido · MFA obligatorio</div>
+      <div class="login-note">Acceso protegido · Credenciales requeridas</div>
     </div>
     <div id="ls2" style="display:none">
       <div style="font-size:12.5px;color:var(--ink3);margin-bottom:16px;text-align:center">Ingresa el código de tu autenticador (TOTP)</div>
@@ -3100,10 +3103,33 @@ function totalDocs(){return Object.values(ST.files).reduce((s,a)=>s+(a?.length||
 function fmtCOP(n){return'$'+Math.round(n).toLocaleString('es-CO');}
 
 /* ── LOGIN ── */
-function goMFA(){document.getElementById('ls1').style.display='none';document.getElementById('ls2').style.display='block';}
+function goMFA(){
+  const user = (document.getElementById('lemail').value||'').trim().toLowerCase();
+  const pwd  = (document.getElementById('lpwd').value||'').trim();
+  const errorEl = document.getElementById('login-error');
+  
+  // Valid credentials
+  const VALID = [
+    {user:'consultorceo', pwd:'-Mariadelmar1015', role:'ceo'},
+  ];
+  
+  const match = VALID.find(v => v.user === user && v.pwd === pwd);
+  
+  if(!match){
+    if(errorEl) errorEl.style.display='block';
+    const pwdEl = document.getElementById('lpwd');
+    if(pwdEl){ pwdEl.style.borderColor='var(--red)'; setTimeout(()=>pwdEl.style.borderColor='',2000); }
+    return;
+  }
+  
+  if(errorEl) errorEl.style.display='none';
+  // Store role for doLogin
+  window._loginRole = match.role;
+  document.getElementById('ls1').style.display='none';
+  document.getElementById('ls2').style.display='block';
+}
 function doLogin(){
-  const email=document.getElementById('lemail').value.trim().toLowerCase();
-  const isCEO = email==='consultorceo@fmcdatalab.com';
+  const isCEO = window._loginRole === 'ceo';
   window.CURRENT_USER = isCEO ? 'ceo' : 'consultant';
   document.getElementById('loginScreen').style.animation='fadeOut .3s forwards';
   setTimeout(()=>{
