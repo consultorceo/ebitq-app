@@ -1,7 +1,11 @@
-<!DOCTYPE html>
+
+  stGuardar();
+}<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
+  <!-- Supabase SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>EBIT-Q | FMC DataLab — Diagnóstico de Madurez Organizacional</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
@@ -27,7 +31,158 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--ink);min-
 .brand-dot{width:8px;height:8px;border-radius:50%;background:var(--teal2)}
 .topbar-r{display:flex;align-items:center;gap:12px}
 .tb-tag{font-size:11px;color:rgba(255,255,255,.4);background:rgba(255,255,255,.07);padding:3px 10px;border-radius:100px}
-.uchip{display:flex;align-items:center;gap:7px;background:rgba(255,255,255,.08);border-radius:100px;padding:4px 12px 4px 5px}
+.uchip{display:flex;align-items:center;gap:7px;background:rgba(255,255,255,.08);border-radius:100px;padding:4px 12px 4px 5px;cursor:pointer;transition:background .2s;}
+.uchip:hover{background:rgba(255,255,255,.14);}
+@keyframes fadeInDown{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+.umenu-item{padding:11px 16px;font-size:13px;color:var(--ink2);cursor:pointer;display:flex;align-items:center;gap:10px;transition:background .12s;}
+.umenu-item:hover{background:var(--bg);}
+.umenu-item-danger{color:var(--red)!important;border-top:1px solid var(--rule);}
+.umenu-item-danger:hover{background:#fff5f5;}
+
+/* ── MODAL DE USUARIO ── */
+#um-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:4000;
+  display:none;align-items:center;justify-content:center;padding:16px;}
+#um-overlay.show{display:flex;}
+#um-box{background:var(--surface);border-radius:16px;
+  box-shadow:0 24px 80px rgba(0,0,0,.22);width:100%;max-width:500px;
+  max-height:90vh;overflow-y:auto;animation:slideUp .2s ease;}
+@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.um-hdr{display:flex;align-items:center;justify-content:space-between;
+  padding:18px 22px;border-bottom:1px solid var(--rule);}
+.um-ttl{font-size:16px;font-weight:700;color:var(--ink);display:flex;align-items:center;gap:8px;}
+.um-x{width:30px;height:30px;border-radius:50%;border:none;background:var(--bg);
+  cursor:pointer;font-size:15px;color:var(--ink3);display:flex;align-items:center;justify-content:center;}
+.um-x:hover{background:var(--rule);}
+.um-body{padding:22px;}
+.um-sec{margin-bottom:20px;}
+.um-sec-lbl{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;
+  color:var(--ink3);margin-bottom:10px;}
+.um-fld{margin-bottom:14px;}
+.um-lbl{font-size:11.5px;font-weight:600;color:var(--ink2);margin-bottom:5px;display:block;}
+.um-inp{width:100%;padding:9px 12px;border:1.5px solid var(--rule);border-radius:8px;
+  font-size:13px;color:var(--ink);background:var(--bg);box-sizing:border-box;transition:border .2s;}
+.um-inp:focus{outline:none;border-color:var(--teal2);}
+.um-inp:disabled{color:var(--ink3);cursor:default;}
+.um-profile-row{display:flex;align-items:center;justify-content:space-between;
+  padding:11px 14px;background:var(--bg);border:1.5px solid var(--rule);
+  border-radius:10px;margin-bottom:8px;transition:border .2s;}
+.um-profile-row:hover{border-color:var(--teal3);}
+.um-profile-info{flex:1;}
+.um-profile-name{font-size:13px;font-weight:700;color:var(--ink);}
+.um-profile-role{font-size:11px;color:var(--ink3);margin-top:2px;}
+.um-admin-toggle{display:flex;align-items:center;gap:7px;cursor:pointer;flex-shrink:0;}
+.um-admin-toggle input[type=checkbox]{width:16px;height:16px;accent-color:var(--teal);cursor:pointer;}
+.um-admin-lbl{font-size:11.5px;color:var(--ink2);white-space:nowrap;}
+.um-pw-wrap{position:relative;}
+.um-pw-eye{position:absolute;right:10px;top:50%;transform:translateY(-50%);
+  cursor:pointer;font-size:16px;color:var(--ink3);user-select:none;}
+.um-strength{height:5px;border-radius:3px;background:var(--rule);margin-top:8px;overflow:hidden;}
+.um-strength-bar{height:5px;border-radius:3px;width:0%;transition:width .3s,background .3s;}
+.um-checks{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.um-chk{font-size:10.5px;padding:2px 8px;border-radius:10px;background:var(--bg);
+  border:1px solid var(--rule);color:var(--ink3);transition:all .2s;}
+.um-chk.ok{background:#f0fdf4;border-color:#86efac;color:#15803d;}
+.um-match{font-size:11px;margin-top:5px;}
+.um-match.ok{color:var(--green);}
+.um-match.bad{color:var(--red);}
+.um-perms-block{background:var(--bg);border:1.5px solid var(--rule);border-radius:10px;padding:14px;margin-bottom:10px;}
+.um-perms-title{font-size:12px;font-weight:700;color:var(--ink);margin-bottom:10px;
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.um-perm-row{display:flex;align-items:center;justify-content:space-between;
+  padding:8px 0;border-bottom:1px solid var(--rule);font-size:12px;}
+.um-perm-row:last-child{border-bottom:none;}
+.um-perm-label{color:var(--ink2);}
+.um-perm-btns{display:flex;gap:5px;}
+.um-perm-btn{padding:3px 10px;border-radius:5px;border:1.5px solid var(--rule);
+  font-size:10.5px;font-weight:700;cursor:pointer;background:var(--surface);color:var(--ink3);transition:all .2s;}
+.um-perm-btn.on{background:#f0fdfa;color:var(--teal);border-color:var(--teal3);}
+.um-perm-btn.off{background:#fef2f2;color:var(--red);border-color:#fecaca;}
+.um-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:8px;}
+.um-btn{padding:9px 20px;border-radius:9px;border:none;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;}
+.um-btn-primary{background:var(--teal2);color:#fff;}
+.um-btn-primary:hover{background:var(--teal);}
+.um-btn-sec{background:var(--bg);color:var(--ink2);border:1.5px solid var(--rule);}
+.um-btn-sec:hover{background:var(--rule);}
+.um-btn-red{background:#fef2f2;color:var(--red);border:1.5px solid #fecaca;}
+.um-btn-red:hover{background:#fee2e2;}
+.um-logout-center{text-align:center;padding:8px 0 4px;}
+.um-logout-icon{font-size:44px;margin-bottom:14px;}
+.um-logout-msg{font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;}
+.um-logout-sub{font-size:12.5px;color:var(--ink3);line-height:1.6;margin-bottom:20px;}
+.umenu-item:hover{background:var(--bg);}
+.umenu-danger{color:var(--red)!important;border-top:1px solid var(--rule);}
+.umenu-danger:hover{background:#fef2f2!important;}
+.umenu-icon{font-size:15px;width:20px;text-align:center;}
+
+/* ── PANEL LATERAL de usuario ── */
+#upanel-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:4000;display:none;justify-content:flex-end;}
+#upanel-overlay.show{display:flex;}
+#upanel{width:420px;max-width:95vw;background:var(--surface);height:100%;overflow-y:auto;
+  box-shadow:-8px 0 40px rgba(0,0,0,.18);display:flex;flex-direction:column;
+  animation:slideInRight .22s ease;}
+@keyframes slideInRight{from{transform:translateX(100%)}to{transform:translateX(0)}}
+.up-header{display:flex;align-items:center;justify-content:space-between;
+  padding:18px 20px;border-bottom:1px solid var(--rule);position:sticky;top:0;background:var(--surface);z-index:1;}
+.up-title{font-size:16px;font-weight:700;color:var(--ink);}
+.up-close{width:30px;height:30px;border-radius:50%;border:none;background:var(--bg);cursor:pointer;
+  font-size:14px;color:var(--ink3);display:flex;align-items:center;justify-content:center;}
+.up-close:hover{background:var(--rule);}
+.up-body{padding:20px;flex:1;}
+.up-section{margin-bottom:22px;}
+.up-section-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;
+  color:var(--ink3);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--rule);}
+.up-field{margin-bottom:14px;}
+.up-label{font-size:11px;font-weight:600;color:var(--ink2);margin-bottom:4px;display:block;}
+.up-input{width:100%;padding:9px 12px;border:1px solid var(--rule);border-radius:8px;
+  font-size:13px;color:var(--ink);background:var(--bg);box-sizing:border-box;transition:border .2s;}
+.up-input:focus{outline:none;border-color:var(--teal2);background:var(--surface);}
+.up-input.invalid{border-color:var(--red);}
+.up-input:disabled{color:var(--ink3);cursor:not-allowed;}
+.up-profile-row{display:flex;align-items:center;justify-content:space-between;
+  padding:10px 12px;background:var(--bg);border:1px solid var(--rule);border-radius:8px;margin-bottom:8px;}
+.up-profile-info .up-pname{font-size:12px;font-weight:700;color:var(--ink);}
+.up-profile-info .up-prole{font-size:10px;color:var(--ink3);margin-top:1px;}
+.up-admin-toggle{display:flex;align-items:center;gap:7px;cursor:pointer;}
+.up-admin-toggle input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:var(--teal);}
+.up-admin-lbl{font-size:11px;color:var(--ink2);}
+.up-admin-badge{font-size:9px;font-weight:700;background:#fef3c7;color:#d97706;
+  border-radius:4px;padding:1px 6px;margin-left:6px;}
+.pw-bar{height:4px;background:var(--rule);border-radius:2px;margin-top:6px;overflow:hidden;}
+.pw-fill{height:100%;border-radius:2px;transition:width .3s,background .3s;width:0%;}
+.pw-checks{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;}
+.pw-check{font-size:10px;color:var(--ink3);}
+.pw-check.ok{color:var(--green);}
+.pw-wrap{position:relative;}
+.pw-eye{position:absolute;right:10px;top:50%;transform:translateY(-50%);
+  cursor:pointer;font-size:14px;color:var(--ink3);user-select:none;}
+.perm-block{background:var(--bg);border:1px solid var(--rule);border-radius:10px;padding:14px;margin-bottom:12px;}
+.perm-block-title{font-size:12px;font-weight:700;color:var(--ink);margin-bottom:10px;
+  display:flex;align-items:center;gap:6px;}
+.perm-row{display:flex;align-items:center;justify-content:space-between;
+  padding:7px 0;border-bottom:1px solid var(--rule);font-size:12px;}
+.perm-row:last-child{border-bottom:none;}
+.perm-name{color:var(--ink2);}
+.perm-btns{display:flex;gap:5px;}
+.perm-btn{padding:3px 10px;border-radius:5px;border:1px solid var(--rule);
+  font-size:10px;font-weight:700;cursor:pointer;background:var(--surface);color:var(--ink3);transition:all .15s;}
+.perm-btn.granted{background:#f0fdfa;color:var(--teal);border-color:var(--teal3);}
+.perm-btn.denied{background:#fef2f2;color:var(--red);border-color:#fecaca;}
+.up-footer{padding:16px 20px;border-top:1px solid var(--rule);display:flex;gap:8px;
+  justify-content:flex-end;position:sticky;bottom:0;background:var(--surface);}
+.up-btn{padding:9px 18px;border-radius:8px;border:none;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;}
+.up-btn-primary{background:var(--teal2);color:#fff;}
+.up-btn-primary:hover{background:var(--teal);}
+.up-btn-sec{background:var(--bg);color:var(--ink2);border:1px solid var(--rule);}
+.up-btn-sec:hover{background:var(--rule);}
+.up-btn-red{background:#fef2f2;color:var(--red);border:1px solid #fecaca;}
+.up-btn-red:hover{background:#fee2e2;}
+.up-btn-green{background:#f0fdfa;color:var(--teal);border:1px solid var(--teal3);}
+.logout-confirm{text-align:center;padding:20px 0 10px;}
+.logout-icon{font-size:44px;margin-bottom:14px;}
+.logout-msg{font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;}
+.logout-sub{font-size:12px;color:var(--ink3);margin-bottom:24px;line-height:1.6;}
+.logout-btns{display:flex;gap:12px;justify-content:center;}
+.cliente-info-box{background:var(--bg);border:1px solid var(--rule);border-radius:8px;padding:12px 14px;margin-bottom:16px;}
 .av{width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,var(--teal),var(--teal2));display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff}
 .uname{font-size:12px;color:rgba(255,255,255,.8);font-weight:500}
 
@@ -343,6 +498,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--ink);min-
 .roi-ahorro-total{font-family:'Syne',sans-serif;font-size:13px;font-weight:800;color:var(--green)}
 .roi-ingreso-total{font-family:'Syne',sans-serif;font-size:13px;font-weight:800;color:#1d4ed8}
 </style>
+
 </head>
 <body>
 
@@ -381,7 +537,23 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--ink);min-
   <div class="topbar-r">
     <span class="tb-tag">FMC DataLab</span>
     <div class="autosave" id="topbar-save" style="display:none"><div class="as-dot"></div>Autosave</div>
-    <div class="uchip"><div class="av">JC</div><span class="uname">Juan Consultor</span></div>
+    <div class="uchip" id="uchip-btn" onclick="toggleUserMenu(event)" title="Opciones de usuario" style="cursor:pointer;">
+      <div class="av" id="user-av">JC</div>
+      <span class="uname" id="user-name">consultorceo</span>
+      <span style="font-size:9px;opacity:.4;margin-left:2px">▾</span>
+    </div>
+
+    <!-- Dropdown menú de usuario -->
+    <div id="user-menu" style="display:none;position:fixed;top:50px;right:12px;background:var(--surface);border:1px solid var(--rule);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.16);min-width:220px;z-index:3000;overflow:hidden;">
+      <div style="padding:12px 16px;border-bottom:1px solid var(--rule);background:var(--bg)">
+        <div style="font-size:13px;font-weight:700;color:var(--ink)" id="menu-display-name">Juan Consultor</div>
+        <div style="font-size:11px;color:var(--ink3)" id="menu-display-email">consultorceo@fmcdatalab.com</div>
+      </div>
+      <div class="umenu-item" onclick="openUserModal('perfil')">👤 Perfil de usuario</div>
+      <div class="umenu-item" onclick="openUserModal('seguridad')">🔒 Seguridad</div>
+      <div class="umenu-item" onclick="openUserModal('cliente')">🔄 Cambiar de cliente</div>
+      <div class="umenu-item umenu-item-danger" onclick="openUserModal('logout')">🚪 Cerrar sesión</div>
+    </div>
   </div>
 </div>
 
@@ -1152,6 +1324,35 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--ink);min-
         </div>
       </div>
     </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════
+     PANEL LATERAL DE USUARIO
+══════════════════════════════════════════════════════ -->
+<div id="upanel-overlay" onclick="closeUserPanelIfBg(event)">
+  <div id="upanel">
+    <div class="up-header">
+      <div class="up-title" id="upanel-title">Perfil de usuario</div>
+      <button class="up-close" onclick="closeUserPanel()" title="Cerrar">✕</button>
+    </div>
+    <div class="up-body" id="upanel-body"></div>
+    <div class="up-footer" id="upanel-footer"></div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════
+     MODAL DE USUARIO (Perfil / Seguridad / Logout)
+═══════════════════════════════════════════════════ -->
+<div id="um-overlay" onclick="umClickOverlay(event)">
+  <div id="um-box">
+    <div class="um-hdr">
+      <div class="um-ttl" id="um-ttl">Perfil de usuario</div>
+      <button class="um-x" onclick="closeUserModal()">✕</button>
+    </div>
+    <div class="um-body" id="um-body"></div>
   </div>
 </div>
 
@@ -2997,6 +3198,120 @@ const LS={hh:{bg:'#134e4a',fg:'#99f6e4',lbl:'Peso alto ●●'},h:{bg:'var(--tea
 
 const ST={step:1,grpId:null,grpName:null,profId:null,profName:null,optype:'',sub:'',turnos:'1',modConf:null,launched:false,ans:{},obs:{},files:{},curMod:null,scenario:'esp'};
 
+/* ── Persistencia del estado del diagnóstico en localStorage ── */
+const ST_KEY = 'ebitq_diag_state';
+
+function stGuardar(){
+  // Guarda ST + valores actuales de los campos del formulario
+  try{
+    const campos = {};
+    ['f-emp','f-nit','f-city','f-emp2','f-anos','f-ventas',
+     'f-email','f-ger','f-cargo','f-op','f-sub','f-turnos','f-desc'].forEach(id=>{
+      const el = document.getElementById(id);
+      if(el) campos[id] = el.value || '';
+    });
+    const snapshot = {
+      step:     ST.step,
+      grpId:    ST.grpId,
+      grpName:  ST.grpName,
+      profId:   ST.profId,
+      profName: ST.profName,
+      optype:   ST.optype,
+      sub:      ST.sub,
+      turnos:   ST.turnos,
+      launched: ST.launched,
+      scenario: ST.scenario,
+      ans:      {...ST.ans},
+      obs:      {...ST.obs},
+      campos:   campos,
+      diagId:   window._DIAG_ID || null,
+      ts:       Date.now()
+    };
+    localStorage.setItem(ST_KEY, JSON.stringify(snapshot));
+  } catch(e){ console.warn('stGuardar error:', e); }
+}
+
+function stRestaurar(){
+  // Restaura ST y repinta la UI con los datos guardados
+  try{
+    const raw = localStorage.getItem(ST_KEY);
+    if(!raw) return false;
+    const s = JSON.parse(raw);
+    if(!s || !s.ts) return false;
+
+    // Restaurar propiedades del estado
+    ST.step     = s.step     || 1;
+    ST.grpId    = s.grpId    || null;
+    ST.grpName  = s.grpName  || null;
+    ST.profId   = s.profId   || null;
+    ST.profName = s.profName || null;
+    ST.optype   = s.optype   || '';
+    ST.sub      = s.sub      || '';
+    ST.turnos   = s.turnos   || '1';
+    ST.launched = s.launched || false;
+    ST.scenario = s.scenario || 'esp';
+    ST.ans      = s.ans      || {};
+    ST.obs      = s.obs      || {};
+    if(s.diagId) window._DIAG_ID = s.diagId;
+
+    // Restaurar campos del formulario
+    if(s.campos){
+      Object.entries(s.campos).forEach(([id, val])=>{
+        const el = document.getElementById(id);
+        if(el && val) el.value = val;
+      });
+    }
+
+    // Si el diagnóstico estaba lanzado, reconstruir la UI completa
+    if(ST.launched){
+      // Desbloquear navegación
+      ['nav-modulos','nav-resultados','nav-plan','nav-roi'].forEach(id=>{
+        document.getElementById(id)?.classList.remove('locked');
+      });
+      // Mostrar empresa en sidebar
+      const emp = (s.campos && s.campos['f-emp']) || ST.grpName || 'Diagnóstico activo';
+      const sbCo = document.getElementById('sb-company');
+      if(sbCo) sbCo.textContent = emp;
+      const sbPr = document.getElementById('sb-profile');
+      if(sbPr) sbPr.textContent = ST.profName || '';
+      // Mostrar badge de industria
+      if(ST.grpId && typeof IND !== 'undefined' && IND[ST.grpId]){
+        const ind = document.getElementById('sb-ind');
+        if(ind){ ind.textContent = IND[ST.grpId].label || ''; ind.style.display='flex'; }
+      }
+      // Reconstruir módulos con las respuestas guardadas
+      if(typeof buildModNav === 'function')  buildModNav();
+      if(typeof buildModPanels === 'function') buildModPanels();
+      // Repintar botones seleccionados
+      Object.entries(ST.ans).forEach(([key, val])=>{
+        [1,2,3,4].forEach(v=>{
+          const b = document.getElementById('sb-'+key+'-'+v);
+          if(b) b.classList.toggle('sel', v===val);
+        });
+        const card = document.getElementById('qcard-'+key);
+        if(card){ card.classList.add('answered'); card.classList.toggle('low', val<=2); }
+      });
+      // Repintar observaciones
+      Object.entries(ST.obs).forEach(([key, obs])=>{
+        const el = document.getElementById('obs-'+key);
+        if(el) el.value = obs;
+      });
+      // Actualizar barras de progreso
+      if(typeof updateGlobalProg === 'function') updateGlobalProg();
+      if(typeof buildSidebarMini === 'function') buildSidebarMini();
+    }
+
+    return true;
+  } catch(e){
+    console.warn('stRestaurar error:', e);
+    return false;
+  }
+}
+
+function stLimpiar(){
+  localStorage.removeItem(ST_KEY);
+}
+
 /* ── UTILS ── */
 let _toastTimer;
 function toast(m,d=2600){
@@ -3036,6 +3351,7 @@ function resetWizard(){
   });
   // Reset mod-sub text
   const ms=document.getElementById('mod-sub');if(ms)ms.textContent='';
+  stLimpiar(); // borrar estado persistido
 }
 
 function nav(p,el){
@@ -3103,40 +3419,110 @@ function totalDocs(){return Object.values(ST.files).reduce((s,a)=>s+(a?.length||
 function fmtCOP(n){return'$'+Math.round(n).toLocaleString('es-CO');}
 
 /* ── LOGIN ── */
-function goMFA(){
-  const user = (document.getElementById('lemail').value||'').trim().toLowerCase();
-  const pwd  = (document.getElementById('lpwd').value||'').trim();
-  const errorEl = document.getElementById('login-error');
-  
-  // Valid credentials
-  const VALID = [
-    {user:'consultorceo', pwd:'-Mariadelmar1015', role:'ceo'},
-  ];
-  
-  const match = VALID.find(v => v.user === user && v.pwd === pwd);
-  
-  if(!match){
-    if(errorEl) errorEl.style.display='block';
-    const pwdEl = document.getElementById('lpwd');
-    if(pwdEl){ pwdEl.style.borderColor='var(--red)'; setTimeout(()=>pwdEl.style.borderColor='',2000); }
+/* ── SUPABASE CONFIG ── */
+const SUPABASE_URL  = 'https://ilyibdsimmpwlyepbekg.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlseWliZHNpbW1wd2x5ZXBiZWtnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzNDI5OTEsImV4cCI6MjA5MTkxODk5MX0.t8ZIzJ5flkyzfbj3RSTTMPq_gB0VaDX59iaGKDdsR8o';
+// Nota: la anon key se debe reemplazar con la clave real de Settings → API Keys → Legacy anon key
+
+let SB = null; // cliente Supabase inicializado al cargar
+let SB_SESSION = null; // sesión activa
+
+function initSupabase(){
+  try {
+    if(window.supabase && SUPABASE_ANON !== 'SUPABASE_ANON_KEY_PLACEHOLDER'){
+      SB = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+      console.log('✅ Supabase inicializado');
+    } else {
+      console.warn('⚠ Supabase SDK no disponible o clave no configurada — usando modo local');
+    }
+  } catch(e){ console.warn('Supabase init error:', e); }
+}
+
+async function goMFA(){
+  const userInput = (document.getElementById('lemail').value||'').trim().toLowerCase();
+  const pwd       = (document.getElementById('lpwd').value||'').trim();
+  const errorEl   = document.getElementById('login-error');
+  const btnCont   = document.querySelector('#ls1 .login-btn');
+
+  if(!userInput || !pwd){
+    if(errorEl){ errorEl.style.display='block'; errorEl.textContent='⚠ Ingresa usuario y contraseña.'; }
     return;
   }
-  
+
+  // Convertir usuario corto a email completo para Supabase
+  const emailMap = { 'consultorceo': 'consultorceo@fmcdatalab.com' };
+  const email = emailMap[userInput] || (userInput.includes('@') ? userInput : userInput + '@fmcdatalab.com');
+
+  if(btnCont){ btnCont.textContent='Verificando...'; btnCont.disabled=true; }
+
+  // Intentar autenticación real con Supabase
+  if(SB){
+    try{
+      const { data, error } = await SB.auth.signInWithPassword({ email, password: pwd });
+      if(error || !data.session){
+        if(errorEl){ errorEl.style.display='block'; errorEl.textContent='⚠ Usuario o contraseña incorrectos.'; }
+        const pwdEl = document.getElementById('lpwd');
+        if(pwdEl){ pwdEl.style.borderColor='var(--red)'; setTimeout(()=>pwdEl.style.borderColor='',2000); }
+        if(btnCont){ btnCont.textContent='Continuar →'; btnCont.disabled=false; }
+        return;
+      }
+      SB_SESSION = data.session;
+      window._loginRole = email.includes('consultorceo') ? 'ceo' : 'consultant';
+      if(errorEl) errorEl.style.display='none';
+      if(btnCont){ btnCont.textContent='Continuar →'; btnCont.disabled=false; }
+      // Avanzar al paso MFA
+      document.getElementById('ls1').style.display='none';
+      document.getElementById('ls2').style.display='block';
+      return;
+    } catch(e){
+      console.warn('Supabase auth error:', e);
+      // fallback a validación local
+    }
+  }
+
+  // FALLBACK LOCAL (cuando Supabase no está configurado aún)
+  const VALID = [{ user:'consultorceo', pwd:'-Mariadelmar1015', role:'ceo' }];
+  const match = VALID.find(v => v.user === userInput && v.pwd === pwd);
+  if(!match){
+    if(errorEl){ errorEl.style.display='block'; errorEl.textContent='⚠ Usuario o contraseña incorrectos.'; }
+    const pwdEl = document.getElementById('lpwd');
+    if(pwdEl){ pwdEl.style.borderColor='var(--red)'; setTimeout(()=>pwdEl.style.borderColor='',2000); }
+    if(btnCont){ btnCont.textContent='Continuar →'; btnCont.disabled=false; }
+    return;
+  }
   if(errorEl) errorEl.style.display='none';
-  // Store role for doLogin
   window._loginRole = match.role;
+  if(btnCont){ btnCont.textContent='Continuar →'; btnCont.disabled=false; }
   document.getElementById('ls1').style.display='none';
   document.getElementById('ls2').style.display='block';
 }
 function doLogin(){
   const isCEO = window._loginRole === 'ceo';
   window.CURRENT_USER = isCEO ? 'ceo' : 'consultant';
+
+  // ── Persistir sesión en localStorage ──
+  const sessionData = {
+    role:   window._loginRole,
+    user:   isCEO ? 'consultorceo' : 'consultant',
+    email:  isCEO ? 'consultorceo@fmcdatalab.com' : 'consultor@fmcdatalab.com',
+    ts:     Date.now(),
+    // Si hay sesión de Supabase, guardamos el access_token para restaurarla
+    sbToken: SB_SESSION ? SB_SESSION.access_token : null,
+    sbRefresh: SB_SESSION ? SB_SESSION.refresh_token : null,
+  };
+  localStorage.setItem('ebitq_session', JSON.stringify(sessionData));
+
+  activarSesionUI(isCEO);
+  toast(isCEO ? '✅ Panel CEO activado · consultorceo@fmcdatalab.com' : '✅ Sesión iniciada · MFA verificado · TLS 1.3');
+}
+
+/* Activa la UI de sesión (usado tanto en login como en restauración) */
+function activarSesionUI(isCEO){
   document.getElementById('loginScreen').style.animation='fadeOut .3s forwards';
   setTimeout(()=>{
     document.getElementById('loginScreen').style.display='none';
     document.getElementById('topbar-save').style.display='flex';
     if(isCEO){
-      // Show CEO panel items, hide consultant-only items
       document.getElementById('nav-ceo').style.display='flex';
       document.getElementById('sb-div-ceo').style.display='block';
       document.getElementById('sb-sec-ceo').style.display='block';
@@ -3146,11 +3532,11 @@ function doLogin(){
       buildCEODashboard();
     }
   },320);
-  toast(isCEO ? '✅ Panel CEO activado · consultorceo@fmcdatalab.com' : '✅ Sesión iniciada · MFA verificado · TLS 1.3');
 }
 
 /* ── WIZARD ── */
 function goStep(n){
+  stGuardar(); // guardar campos del wizard
   ST.step=n;
   [1,2,3].forEach(i=>{
     document.getElementById('ws'+i).className='wstep'+(i<n?' done':i===n?' active':' locked');
@@ -3228,9 +3614,19 @@ function launch(){
   ['nav-modulos','nav-resultados','nav-plan','nav-roi'].forEach(id=>{
     document.getElementById(id)?.classList.remove('locked');
   });
+  // Crear diagnóstico en Supabase (async, no bloquea)
+  sbCrearDiagnostico(
+    emp,
+    ST.profId  || '',
+    ST.grpId   || '',
+    ST.turnos  || '1'
+  ).then(diagId => {
+    if(diagId) console.log('✅ Diagnóstico creado en Supabase:', diagId);
+  });
   // Rebuild all CFO IA data adapted to industry
   rebuildCFOByIndustry();
   buildModNav();buildModPanels();
+  stGuardar(); // persistir configuración del diagnóstico
   toast('✅ Diagnóstico lanzado · CFO IA adaptado a '+( ST.profName||'tu industria'));
   setTimeout(()=>nav('modulos',document.getElementById('nav-modulos')),400);
 }
@@ -3322,7 +3718,7 @@ function buildModPanels(){
         <div class="qfooter">
           <div>
             <div class="qfl">Observaciones y hallazgos</div>
-            <textarea class="fta" id="obs-${key}" placeholder="Describe hallazgos concretos, datos cuantitativos, ejemplos observados o situaciones específicas encontradas durante la sesión…" rows="3" oninput="ST.obs['${key}']=this.value"></textarea>
+            <textarea class="fta" id="obs-${key}" placeholder="Describe hallazgos concretos, datos cuantitativos, ejemplos observados o situaciones específicas encontradas durante la sesión…" rows="3" oninput="ST.obs['${key}']=this.value;sbGuardarObsDebounced('${key}',this.value,${m.id},${qi})"></textarea>
             ${evid}
           </div>
           <div>
@@ -3383,6 +3779,10 @@ function setScore(mid,qi,val){
   const card=document.getElementById('qcard-'+key);
   if(card){card.classList.add('answered');card.classList.toggle('low',val<=2);}
   updateModHeader(mid);updateModNav(mid);updateGlobalProg();buildSidebarMini();
+  // Guardar en Supabase (silencioso — no bloquea la UI)
+  const obs = ST.obs[key]||null;
+  sbGuardarRespuesta(mid, qi, val, obs);
+  stGuardar(); // persistir en localStorage
   toast(`✓ Guardado — Pregunta ${qi+1}: ${LABELS[val]}`);
   if(val<=2)setTimeout(()=>document.getElementById('obs-'+key)?.focus(),200);
 }
@@ -4847,10 +5247,139 @@ function setCEOTab(el, tab){
 }
 
 function buildCEODashboard(){
-  buildClientesTable();
-  buildPlanesView();
-  buildTareasView();
-  buildReportesView();
+  // Intentar cargar datos reales de Supabase primero
+  sbCargarCEODashboard().then(loaded => {
+    if(!loaded){
+      // Fallback a datos de demostración
+      buildClientesTable();
+      buildPlanesView();
+      buildTareasView();
+      buildReportesView();
+    }
+  });
+}
+
+async function sbCargarCEODashboard(){
+  if(!SB || !SB_SESSION) return false;
+  try{
+    // Cargar diagnósticos con datos del cliente
+    const { data: diags, error } = await SB
+      .from('diagnosticos')
+      .select(`
+        id, estado, puntaje_global, nivel_madurez, modulos_criticos,
+        fecha_inicio, fecha_completado, turnos_trabajo,
+        clientes ( id, nombre, nit, sector, perfil_industria, email_reporte, nombre_gerente )
+      `)
+      .order('creado_en', { ascending: false });
+
+    if(error || !diags || diags.length === 0) return false;
+
+    // Cargar tareas de todos los diagnósticos encontrados
+    const diagIds = diags.map(d => d.id);
+    const { data: tareas } = await SB
+      .from('tareas_plan')
+      .select('*')
+      .in('diagnostico_id', diagIds)
+      .order('creado_en', { ascending: false });
+
+    // Convertir a formato CEO_CLIENTES
+    const clientesReales = diags.map((d, i) => ({
+      id: d.id,
+      empresa: d.clientes?.nombre || 'Sin nombre',
+      nit: d.clientes?.nit || '—',
+      sector: d.clientes?.sector || d.clientes?.perfil_industria || '—',
+      contacto: d.clientes?.nombre_gerente || '—',
+      email: d.clientes?.email_reporte || '',
+      fecha_diag: d.fecha_inicio || new Date().toISOString().split('T')[0],
+      madurez: d.puntaje_global || 0,
+      estado: d.estado || 'en_progreso',
+      dias_plan: d.fecha_inicio
+        ? Math.floor((new Date() - new Date(d.fecha_inicio)) / 86400000)
+        : 0,
+      plan_dias: 90,
+      diag_id: d.id
+    }));
+
+    // Reemplazar datos demo con datos reales
+    window.CEO_CLIENTES_REAL = clientesReales;
+    window.CEO_TAREAS_REAL   = tareas || [];
+
+    // Renderizar con datos reales
+    buildClientesTableReal(clientesReales);
+    buildTareasViewReal(tareas || []);
+    buildPlanesView();
+    buildReportesView();
+
+    console.log(`✅ CEO Dashboard: ${clientesReales.length} clientes reales cargados`);
+    return true;
+  } catch(e){
+    console.warn('sbCargarCEODashboard error:', e);
+    return false;
+  }
+}
+
+function buildClientesTableReal(clientes){
+  const tbody = document.getElementById('ceo-tbody');
+  if(!tbody) return;
+  if(clientes.length === 0){
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--ink3)">
+      No hay diagnósticos registrados aún. Configura y lanza el primer diagnóstico.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = clientes.map(cl => {
+    const pct = Math.min(100, Math.round((cl.dias_plan/cl.plan_dias)*100));
+    const bar = cl.estado==='completado'?'var(--green)':cl.madurez<=60?'var(--red2)':cl.madurez<=80?'var(--amber2)':'var(--teal2)';
+    const estadoBadge = {
+      'en_progreso': '<span class="b-badge b-teal">En diagnóstico</span>',
+      'en_plan':     '<span class="b-badge b-amber">En plan</span>',
+      'completado':  '<span class="b-badge b-green">Completado</span>',
+    }[cl.estado] || '<span class="b-badge b-gray">'+cl.estado+'</span>';
+    return `<tr>
+      <td><div style="font-weight:700;font-size:13px">${cl.empresa}</div>
+          <div style="font-size:11px;color:var(--ink3)">${cl.sector} · NIT ${cl.nit}</div></td>
+      <td><div style="display:flex;align-items:center;gap:6px">
+            <div style="width:60px;height:5px;background:var(--rule);border-radius:3px;overflow:hidden">
+              <div style="width:${cl.madurez}%;height:100%;background:${bar};border-radius:3px"></div>
+            </div>
+            <span style="font-size:12px;font-weight:700;color:${bar}">${cl.madurez?cl.madurez+'%':'—'}</span>
+          </div></td>
+      <td>${estadoBadge}</td>
+      <td style="font-size:12px">${cl.dias_plan > 0 ? 'Día '+cl.dias_plan+' / 90' : 'Hoy'}</td>
+      <td style="font-size:12px;color:var(--ink3)">${cl.fecha_diag}</td>
+      <td><button class="btn btn-sec btn-sm" onclick="verDiagnostico('${cl.diag_id}')">Ver</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function buildTareasViewReal(tareas){
+  ['pendiente','en_progreso','completada'].forEach(estado => {
+    const col = document.getElementById('col-'+estado);
+    if(!col) return;
+    const filtradas = tareas.filter(t => t.estado === estado);
+    col.innerHTML = filtradas.length === 0
+      ? `<div style="text-align:center;padding:16px;color:var(--ink3);font-size:12px">Sin tareas</div>`
+      : filtradas.map(t => `
+        <div class="task-card" onclick="toggleTaskEstado('${t.id}','${estado}')">
+          <div style="font-size:12px;font-weight:600;color:var(--ink)">${t.descripcion}</div>
+          <div style="font-size:11px;color:var(--ink3);margin-top:4px">
+            ${t.responsable||'Sin asignar'} · Fase ${t.fase}
+            ${t.fecha_vence?'· Vence: '+t.fecha_vence:''}
+          </div>
+        </div>`).join('');
+  });
+}
+
+async function toggleTaskEstado(taskId, estadoActual){
+  if(!SB || !SB_SESSION) return;
+  const sig = estadoActual==='pendiente'?'en_progreso':estadoActual==='en_progreso'?'completada':'pendiente';
+  await SB.from('tareas_plan').update({estado:sig}).eq('id',taskId);
+  sbCargarCEODashboard(); // refresh
+  toast(`✅ Tarea actualizada → ${sig}`);
+}
+
+function verDiagnostico(diagId){
+  toast('📋 Cargando diagnóstico ' + diagId.substring(0,8) + '...');
+  // En el futuro: navegar al diagnóstico guardado
 }
 
 function buildClientesTable(){
@@ -5118,8 +5647,499 @@ window.CURRENT_USER = 'consultant';
 
 /* ══════════════════════════════════════════════════════════════ */
 
+/* ── SUPABASE HELPERS ── */
+
+/* Debounce para observaciones — no dispara en cada tecla */
+const _obsTimers = {};
+function sbGuardarObsDebounced(key, obs, modId, qi){
+  clearTimeout(_obsTimers[key]);
+  _obsTimers[key] = setTimeout(()=>{
+    const val = ST.ans[key];
+    if(val) sbGuardarRespuesta(modId, qi, val, obs||null);
+    stGuardar(); // persistir observación en localStorage
+  }, 1200);
+}
+
+async function sbGuardarRespuesta(modId, preguntaIdx, valor, observacion){
+  if(!SB || !SB_SESSION) return; // sin conexión, solo local
+  try{
+    const diagId = window._DIAG_ID; // UUID del diagnóstico activo
+    if(!diagId) return;
+    await SB.from('respuestas').upsert({
+      diagnostico_id: diagId,
+      modulo_id: modId,
+      pregunta_idx: preguntaIdx,
+      valor: valor,
+      observacion: observacion || null
+    }, { onConflict: 'diagnostico_id,modulo_id,pregunta_idx' });
+  } catch(e){ console.warn('Error guardando respuesta en Supabase:', e); }
+}
+
+async function sbCrearDiagnostico(clienteNombre, perfil, grupo, turnos){
+  if(!SB || !SB_SESSION) return null;
+  try{
+    // Primero buscar o crear el cliente
+    let clienteId = null;
+    const { data: clientes } = await SB.from('clientes')
+      .select('id').eq('nombre', clienteNombre).limit(1);
+    if(clientes && clientes.length > 0){
+      clienteId = clientes[0].id;
+    } else {
+      const { data: nuevo } = await SB.from('clientes').insert({
+        nombre: clienteNombre, perfil_industria: perfil, grupo_industria: grupo
+      }).select('id').single();
+      if(nuevo) clienteId = nuevo.id;
+    }
+    if(!clienteId) return null;
+    // Crear el diagnóstico
+    const { data: diag } = await SB.from('diagnosticos').insert({
+      cliente_id: clienteId,
+      estado: 'en_progreso',
+      turnos_trabajo: turnos || '1'
+    }).select('id').single();
+    if(diag){ window._DIAG_ID = diag.id; return diag.id; }
+  } catch(e){ console.warn('Error creando diagnóstico en Supabase:', e); }
+  return null;
+}
+
+async function sbCerrarSesion(){
+  if(SB) await SB.auth.signOut().catch(e=>console.warn(e));
+  SB_SESSION = null;
+  window._loginRole = null;
+  window._DIAG_ID   = null;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MENÚ DE USUARIO — Perfil, Seguridad, Cambiar cliente, Logout
+   Integrado con Supabase Auth para cambio real de contraseña
+═══════════════════════════════════════════════════════════════ */
+
+/* ── Estado de sesión del usuario activo ── */
+const U_PROFILES = [
+  {id:'p1', name:'Ana Gómez',    role:'Consultora Senior',     isAdmin:false},
+  {id:'p2', name:'Carlos Ríos',  role:'Consultor Junior',       isAdmin:false},
+  {id:'p3', name:'María Torres', role:'Consultora Especialista', isAdmin:true},
+];
+const U_PERMS_DEFAULT = {
+  modulos:true, formularios:true, botones:true,
+  resultados:true, roi:true, plan:true, cfo:false
+};
+let U_PERMS = {
+  p1:{...U_PERMS_DEFAULT},
+  p2:{...U_PERMS_DEFAULT, botones:false, roi:false, cfo:false},
+  p3:{...U_PERMS_DEFAULT, cfo:true},
+};
+
+/* ══════════════════════════════════════════════════════════════════
+   MENÚ DE USUARIO — Dropdown + Modal completo
+   Secciones: Perfil, Seguridad, Cambiar cliente, Cerrar sesión
+══════════════════════════════════════════════════════════════════ */
+
+/* Estado de perfiles gestionados (en memoria, se persiste a Supabase en siguiente fase) */
+const PERFILES_DEMO = [
+  {id:'p1', nombre:'Ana Gómez',    rol:'Consultora Senior',     isAdmin:false},
+  {id:'p2', nombre:'Carlos Ríos',  rol:'Consultor Junior',      isAdmin:false},
+  {id:'p3', nombre:'María Torres', rol:'Consultora Especialista',isAdmin:true},
+];
+
+const PERMISOS_DEMO = {
+  p1:{modulos:true, formularios:true, botones:true, resultados:true, roi:true, plan:true, cfo:false},
+  p2:{modulos:true, formularios:true, botones:false, resultados:true, roi:false, plan:true, cfo:false},
+  p3:{modulos:true, formularios:true, botones:true, resultados:true, roi:true, plan:true, cfo:true},
+};
+
+/* ── Abrir/cerrar dropdown ── */
+function toggleUserMenu(e){
+  e.stopPropagation();
+  const m = document.getElementById('user-menu');
+  const open = m.style.display === 'block';
+  m.style.display = open ? 'none' : 'block';
+  if(!open){
+    const handler = ev => {
+      if(!ev.target.closest('#uchip-btn') && !ev.target.closest('#user-menu')){
+        m.style.display = 'none';
+        document.removeEventListener('click', handler);
+      }
+    };
+    setTimeout(() => document.addEventListener('click', handler), 10);
+  }
+}
+
+/* ── Chip del topbar ── */
+function updateUserChip(name, email, role){
+  // name = username (ej: 'consultorceo'), email and role go in the dropdown header
+  const n  = document.getElementById('user-name');
+  const av = document.getElementById('user-av');
+  const mn = document.getElementById('menu-display-name');
+  const me = document.getElementById('menu-display-email');
+  if(name){
+    if(n)  n.textContent  = name;
+    // Avatar: initials from username
+    if(av) av.textContent = name.substring(0,2).toUpperCase();
+  }
+  // Dropdown header shows full display name + email
+  const displayName = role === 'ceo' ? 'Juan Consultor CEO' : 'Consultor';
+  if(mn) mn.textContent = displayName;
+  if(email && me) me.textContent = email;
+}
+
+/* ── Abrir modal ── */
+function openUserModal(seccion){
+  document.getElementById('user-menu').style.display = 'none';
+  const overlay = document.getElementById('um-overlay');
+  const ttl     = document.getElementById('um-ttl');
+  const body    = document.getElementById('um-body');
+  if(!overlay) return;
+  const titulos = {
+    perfil:   '👤 Perfil de usuario',
+    seguridad:'🔒 Seguridad',
+    cliente:  '🔄 Cambiar de cliente',
+    logout:   '🚪 Cerrar sesión',
+  };
+  ttl.textContent  = titulos[seccion] || seccion;
+  body.innerHTML   = '';
+  if(seccion === 'perfil')    body.innerHTML = renderPerfil();
+  else if(seccion === 'seguridad') body.innerHTML = renderSeguridad();
+  else if(seccion === 'cliente')   body.innerHTML = renderCambiarCliente();
+  else if(seccion === 'logout')    body.innerHTML = renderLogout();
+  overlay.classList.add('show');
+}
+function closeUserModal(){
+  document.getElementById('um-overlay')?.classList.remove('show');
+}
+function umClickOverlay(e){
+  if(e.target === document.getElementById('um-overlay')) closeUserModal();
+}
+
+/* ══════════════════════════════════
+   PERFIL DE USUARIO
+══════════════════════════════════ */
+function renderPerfil(){
+  const isCEO = window.CURRENT_USER === 'ceo';
+  const nombre = document.getElementById('user-name')?.textContent || 'Juan Consultor';
+  const email  = document.getElementById('menu-display-email')?.textContent || 'consultorceo@fmcdatalab.com';
+
+  const perfilesHtml = isCEO ? PERFILES_DEMO.map(p => `
+    <div class="um-profile-row">
+      <div class="um-profile-info">
+        <div class="um-profile-name">${p.nombre}</div>
+        <div class="um-profile-role">${p.rol}${p.isAdmin?' &nbsp;<span style="background:#fef3c7;color:#d97706;border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700">Admin</span>':''}</div>
+      </div>
+      <label class="um-admin-toggle" title="Marcar como administrador">
+        <input type="checkbox" ${p.isAdmin?'checked':''} onchange="toggleAdminPerfil('${p.id}',this.checked)">
+        <span class="um-admin-lbl">Admin</span>
+      </label>
+    </div>`).join('') : '';
+
+  return `
+    <div class="um-sec">
+      <div class="um-sec-lbl">Información personal</div>
+      <div class="um-fld">
+        <label class="um-lbl">Nombre completo</label>
+        <input class="um-inp" id="pf-nombre" value="${nombre}">
+      </div>
+      <div class="um-fld">
+        <label class="um-lbl">Correo electrónico</label>
+        <input class="um-inp" id="pf-email" value="${email}" type="email">
+      </div>
+      <div class="um-fld">
+        <label class="um-lbl">Rol</label>
+        <input class="um-inp" value="${isCEO?'CEO / Administrador':'Consultor'}" disabled>
+      </div>
+    </div>
+    ${isCEO ? `<div class="um-sec">
+      <div class="um-sec-lbl">Perfiles de consultores</div>
+      <div style="font-size:11.5px;color:var(--ink3);margin-bottom:12px;line-height:1.55">
+        Marca <strong>Admin</strong> para otorgar permisos de administrador al perfil.
+        Desmarca para revocarlos.
+      </div>
+      ${perfilesHtml}
+    </div>` : ''}
+    <div class="um-btns">
+      <button class="um-btn um-btn-sec" onclick="closeUserModal()">Cancelar</button>
+      <button class="um-btn um-btn-primary" onclick="guardarPerfil()">💾 Guardar cambios</button>
+    </div>`;
+}
+
+function toggleAdminPerfil(pid, isAdmin){
+  const p = PERFILES_DEMO.find(x => x.id === pid);
+  if(!p) return;
+  p.isAdmin = isAdmin;
+  // Refrescar la vista
+  document.getElementById('um-body').innerHTML = renderPerfil();
+  toast(isAdmin ? `✅ ${p.nombre} ahora es administrador` : `ℹ ${p.nombre} ya no es administrador`);
+}
+
+function guardarPerfil(){
+  const nombre = document.getElementById('pf-nombre')?.value?.trim();
+  const email  = document.getElementById('pf-email')?.value?.trim();
+  if(nombre) updateUserChip(nombre, email, window.CURRENT_USER);
+  closeUserModal();
+  toast('✅ Perfil actualizado');
+}
+
+/* ══════════════════════════════════
+   SEGURIDAD
+══════════════════════════════════ */
+function renderSeguridad(){
+  const isCEO = window.CURRENT_USER === 'ceo';
+  const PERMS_ITEMS = [
+    {key:'modulos',     label:'📋 Módulos de diagnóstico'},
+    {key:'formularios', label:'📝 Formularios y campos'},
+    {key:'botones',     label:'🔘 Botones de acción'},
+    {key:'resultados',  label:'📈 Resultados del diagnóstico'},
+    {key:'roi',         label:'💰 Calculadora de impacto (ROI)'},
+    {key:'plan',        label:'🗓 Plan de implementación'},
+    {key:'cfo',         label:'🧠 CFO IA Premium'},
+  ];
+
+  const permsHtml = isCEO ? `
+    <div class="um-sec" style="margin-top:6px">
+      <div class="um-sec-lbl">🛡 Permisos por consultor</div>
+      <div style="font-size:11.5px;color:var(--ink3);margin-bottom:14px;line-height:1.55">
+        Como administrador defines qué puede ver y usar cada consultor.
+        Los permisos se aplicarán en la siguiente fase de implementación.
+      </div>
+      ${PERFILES_DEMO.map(p => `
+      <div class="um-perms-block">
+        <div class="um-perms-title">
+          <span>${p.nombre}</span>
+          <span style="font-size:10.5px;font-weight:400;color:var(--ink3)">${p.rol}</span>
+          ${p.isAdmin ? '<span style="background:#fef3c7;color:#d97706;border-radius:4px;padding:1px 7px;font-size:9px;font-weight:700">Admin</span>' : ''}
+        </div>
+        ${PERMS_ITEMS.map(item => {
+          const val = (PERMISOS_DEMO[p.id]||{})[item.key] !== false;
+          return `<div class="um-perm-row">
+            <span class="um-perm-label">${item.label}</span>
+            <div class="um-perm-btns">
+              <button class="um-perm-btn ${val?'on':''}" onclick="setPerm('${p.id}','${item.key}',true,this)">Permitir</button>
+              <button class="um-perm-btn ${!val?'off':''}" onclick="setPerm('${p.id}','${item.key}',false,this)">Restringir</button>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>`).join('')}
+    </div>` : '';
+
+  return `
+    <div class="um-sec">
+      <div class="um-sec-lbl">Cambiar contraseña</div>
+      <div class="um-fld">
+        <label class="um-lbl">Contraseña actual</label>
+        <div class="um-pw-wrap">
+          <input class="um-inp" type="password" id="pw-actual" placeholder="••••••••" oninput="validarPwd()">
+          <span class="um-pw-eye" onclick="togglePwVis('pw-actual',this)">👁</span>
+        </div>
+      </div>
+      <div class="um-fld">
+        <label class="um-lbl">Nueva contraseña</label>
+        <div class="um-pw-wrap">
+          <input class="um-inp" type="password" id="pw-nueva" placeholder="Mínimo 8 caracteres" oninput="validarPwd()">
+          <span class="um-pw-eye" onclick="togglePwVis('pw-nueva',this)">👁</span>
+        </div>
+        <div class="um-strength"><div class="um-strength-bar" id="pw-bar"></div></div>
+        <div class="um-checks">
+          <span class="um-chk" id="chk-len">✗ 8 caracteres</span>
+          <span class="um-chk" id="chk-upper">✗ Mayúscula</span>
+          <span class="um-chk" id="chk-num">✗ Número</span>
+          <span class="um-chk" id="chk-esp">✗ Carácter especial</span>
+        </div>
+      </div>
+      <div class="um-fld">
+        <label class="um-lbl">Confirmar nueva contraseña</label>
+        <div class="um-pw-wrap">
+          <input class="um-inp" type="password" id="pw-confirm" placeholder="Repite la contraseña" oninput="validarPwd()">
+          <span class="um-pw-eye" onclick="togglePwVis('pw-confirm',this)">👁</span>
+        </div>
+        <div class="um-match" id="pw-match"></div>
+      </div>
+      <div class="um-btns" style="margin-bottom:0">
+        <button class="um-btn um-btn-sec" onclick="closeUserModal()">Cancelar</button>
+        <button class="um-btn um-btn-primary" onclick="cambiarPassword()">🔒 Actualizar contraseña</button>
+      </div>
+    </div>
+    ${permsHtml}`;
+}
+
+function togglePwVis(id, el){
+  const inp = document.getElementById(id);
+  if(!inp) return;
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+  el.textContent = inp.type === 'password' ? '👁' : '🙈';
+}
+
+function validarPwd(){
+  const v = document.getElementById('pw-nueva')?.value || '';
+  const cf = document.getElementById('pw-confirm')?.value || '';
+  const checks = {
+    len:   v.length >= 8,
+    upper: /[A-Z]/.test(v),
+    num:   /[0-9]/.test(v),
+    esp:   /[^A-Za-z0-9]/.test(v),
+  };
+  const score = Object.values(checks).filter(Boolean).length;
+  // Update check badges
+  const map = {len:'chk-len', upper:'chk-upper', num:'chk-num', esp:'chk-esp'};
+  const labels = {len:'8 caracteres', upper:'Mayúscula', num:'Número', esp:'Carácter especial'};
+  Object.entries(checks).forEach(([k,ok]) => {
+    const el = document.getElementById(map[k]);
+    if(el){ el.textContent = (ok?'✅ ':'✗ ') + labels[k]; el.classList.toggle('ok', ok); }
+  });
+  // Strength bar
+  const bar = document.getElementById('pw-bar');
+  if(bar){
+    const pct = (score/4)*100;
+    const col = score<=1?'var(--red)':score<=2?'var(--amber)':score<=3?'var(--teal2)':'var(--green)';
+    bar.style.width = pct + '%'; bar.style.background = col;
+  }
+  // Match hint
+  const match = document.getElementById('pw-match');
+  if(match && cf){
+    const ok = v === cf;
+    match.textContent = ok ? '✅ Las contraseñas coinciden' : '✗ No coinciden';
+    match.className = 'um-match ' + (ok ? 'ok' : 'bad');
+  } else if(match) match.textContent = '';
+}
+
+function setPerm(pid, perm, val, btn){
+  if(!PERMISOS_DEMO[pid]) PERMISOS_DEMO[pid] = {};
+  PERMISOS_DEMO[pid][perm] = val;
+  const row = btn.closest('.um-perm-btns');
+  if(row){
+    row.querySelectorAll('.um-perm-btn').forEach(b => b.classList.remove('on','off'));
+    if(val) row.querySelectorAll('.um-perm-btn')[0].classList.add('on');
+    else    row.querySelectorAll('.um-perm-btn')[1].classList.add('off');
+  }
+  const p = PERFILES_DEMO.find(x=>x.id===pid);
+  toast(val ? `✅ ${p?.nombre}: ${perm} permitido` : `⛔ ${p?.nombre}: ${perm} restringido`);
+}
+
+function cambiarPassword(){
+  const actual   = document.getElementById('pw-actual')?.value || '';
+  const nueva    = document.getElementById('pw-nueva')?.value  || '';
+  const confirma = document.getElementById('pw-confirm')?.value || '';
+  // Validar contraseña actual
+  const VALID_PWD = '-Mariadelmar1015'; // En producción vendrá de Supabase
+  if(actual !== VALID_PWD){
+    toast('❌ La contraseña actual no es correcta'); return;
+  }
+  if(nueva === actual){
+    toast('❌ La nueva contraseña debe ser diferente a la actual'); return;
+  }
+  if(nueva.length < 8 || !/[A-Z]/.test(nueva) || !/[0-9]/.test(nueva) || !/[^A-Za-z0-9]/.test(nueva)){
+    toast('❌ La nueva contraseña no cumple los requisitos'); return;
+  }
+  if(nueva !== confirma){
+    toast('❌ Las contraseñas no coinciden'); return;
+  }
+  // En producción: llamar supabase.auth.updateUser({ password: nueva })
+  closeUserModal();
+  toast('✅ Contraseña actualizada correctamente');
+}
+
+/* ══════════════════════════════════
+   CAMBIAR DE CLIENTE
+══════════════════════════════════ */
+function renderCambiarCliente(){
+  const empresa = document.getElementById('sb-company')?.textContent || 'Sin configurar';
+  const perfil  = document.getElementById('sb-profile')?.textContent || '—';
+  return `
+    <div class="um-sec">
+      <div class="um-sec-lbl">Cliente activo</div>
+      <div style="background:var(--bg);border:1.5px solid var(--rule);border-radius:10px;padding:12px 16px;margin-bottom:16px">
+        <div style="font-weight:700;font-size:13px;color:var(--ink)">${empresa}</div>
+        <div style="font-size:11.5px;color:var(--ink3);margin-top:3px">${perfil}</div>
+      </div>
+      <div style="font-size:12px;color:var(--ink3);margin-bottom:16px;line-height:1.6">
+        Para iniciar un diagnóstico con un nuevo cliente el estado actual del diagnóstico en curso
+        quedará guardado. Podrás retomar desde el Panel CEO.
+      </div>
+    </div>
+    <div class="um-btns">
+      <button class="um-btn um-btn-sec" onclick="closeUserModal()">Cancelar</button>
+      <button class="um-btn um-btn-primary" onclick="ejecutarCambioCliente()">🔄 Nuevo cliente</button>
+    </div>`;
+}
+
+function ejecutarCambioCliente(){
+  if(typeof resetWizard === 'function') resetWizard();
+  closeUserModal();
+  nav('config', document.getElementById('nav-config'));
+  toast('✅ Diagnóstico guardado. Configura el nuevo cliente.');
+}
+
+/* ══════════════════════════════════
+   CERRAR SESIÓN
+══════════════════════════════════ */
+function renderLogout(){
+  return `
+    <div class="um-logout-center">
+      <div class="um-logout-icon">🔒</div>
+      <div class="um-logout-msg">¿Confirmas que deseas cerrar sesión?</div>
+      <div class="um-logout-sub">
+        La sesión y el diagnóstico en curso quedarán guardados.<br>
+        Deberás ingresar tus credenciales nuevamente para acceder.
+      </div>
+      <div class="um-btns" style="justify-content:center">
+        <button class="um-btn um-btn-sec" style="min-width:90px" onclick="closeUserModal()">No</button>
+        <button class="um-btn um-btn-red" style="min-width:90px" onclick="confirmLogout()">Sí, cerrar sesión</button>
+      </div>
+    </div>`;
+}
+
+function confirmLogout(){
+  // Cerrar sesión en Supabase
+  if(typeof sbCerrarSesion === 'function') sbCerrarSesion();
+  window._loginRole = null;
+  window.CURRENT_USER = null;
+  localStorage.removeItem('ebitq_session'); // borrar sesión persistida
+  window.__sessionRestored = null; // invalidar cualquier sesión en memoria
+  // Bloquear navegación
+  ['nav-modulos','nav-resultados','nav-plan','nav-roi'].forEach(id =>
+    document.getElementById(id)?.classList.add('locked'));
+  document.getElementById('nav-ceo')        && (document.getElementById('nav-ceo').style.display='none');
+  document.getElementById('sb-div-ceo')     && (document.getElementById('sb-div-ceo').style.display='none');
+  document.getElementById('sb-sec-ceo')     && (document.getElementById('sb-sec-ceo').style.display='none');
+  document.getElementById('topbar-save')    && (document.getElementById('topbar-save').style.display='none');
+  // Limpiar campos de login y volver a pantalla inicial
+  ['lemail','lpwd'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  const lerr = document.getElementById('login-error');
+  if(lerr) lerr.style.display = 'none';
+  const ls1 = document.getElementById('ls1');
+  const ls2 = document.getElementById('ls2');
+  if(ls1) ls1.style.display = 'block';
+  if(ls2) ls2.style.display = 'none';
+  const screen = document.getElementById('loginScreen');
+  if(screen){ screen.style.display='flex'; screen.style.animation=''; }
+  closeUserModal();
+  toast('✅ Sesión cerrada. Hasta pronto.');
+}
+
+
+/* ── Hook doLogin para actualizar el chip ── */
+(function(){
+  const _orig = doLogin;
+  doLogin = function(){
+    _orig.call(this);
+    const isCEO = window._loginRole === 'ceo';
+    const name  = isCEO ? 'consultorceo' : 'consultor';
+    const email = isCEO ? 'consultorceo@fmcdatalab.com' : 'consultor@fmcdatalab.com';
+    const role  = isCEO ? 'CEO' : 'Consultor';
+    setTimeout(() => updateUserChip(name, email, role), 350);
+  };
+})();
+
+/* ══════════════════════════════════════════════════════ */
+
 /* ── INIT ── */
 window.addEventListener('load',()=>{
+  initSupabase();
+
+  // Restaurar estado del diagnóstico guardado (independiente de la sesión)
+  setTimeout(()=>{
+    const restaurado = stRestaurar();
+    if(restaurado) console.log('✅ Estado del diagnóstico restaurado desde localStorage');
+  }, 100); // pequeño delay para que el DOM esté listo
+
   calcROI();
   buildPareto();buildABC();buildProj();buildZonas();buildAlerts();
   ['roi-nemp','roi-rot','roi-salrot','roi-prop','roi-valprop'].forEach(id=>{
