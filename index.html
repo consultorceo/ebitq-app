@@ -4297,9 +4297,123 @@ function buildPlan(){
       </div>
     </div>`;
   }).join('');
+
+  // ── Persistir resultados en Supabase para 90D Autopilot ──
+  sbGuardarScores();
+  sbGuardarTareasPlan(phases);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   GUARDAR SCORES Y PLAN EN SUPABASE — handoff para 90D Autopilot
+═══════════════════════════════════════════════════════════════ */
+
+async function sbGuardarScores(){
+  if(!SB || !window._DIAG_ID) return;
+  try{
+    const mods = getMods();
+    const answered = m => m.qs.some((_,qi) => ST.ans[m.id+'_'+qi] > 0);
+
+    // Calcular score por módulo
+    const scores = {};
+    let totalPct = 0, totalMods = 0;
+    mods.forEach(m => {
+      if(!modActive(m.k) || !answered(m)) return;
+      const pct = Math.round(getModPct(m));
+      scores[m.k] = pct;
+      totalPct += pct;
+      totalMods++;
+    });
+    const globalScore = totalMods > 0 ? Math.round(totalPct / totalMods) : 0;
+
+    // Determinar nivel de madurez
+    const nivel = globalScore >= 81 ? 'Optimizado'
+                : globalScore >= 66 ? 'Gestionado'
+                : globalScore >= 51 ? 'Controlado'
+                : globalScore >= 36 ? 'Definido'
+                : 'Reactivo';
+
+    // Contar módulos críticos
+    const criticos = mods.filter(m => modActive(m.k) && answered(m) && getModPct(m) <= 60).length;
+
+    // Determinar duración del plan
+    const avgPct = globalScore;
+    const hasCritical = mods.some(m => modActive(m.k) && answered(m) && getModPct(m) <= 60);
+    const hasDevGaps  = mods.some(m => modActive(m.k) && answered(m) && getModPct(m) > 60 && getModPct(m) <= 80) && avgPct > 80;
+    const duracion = hasCritical || avgPct <= 60 ? 90
+                   : avgPct <= 80 ? 60
+                   : hasDevGaps ? 60 : 45;
+
+    const { error } = await SB.from('diagnosticos').update({
+      puntaje_global:   globalScore,
+      nivel_madurez:    nivel,
+      modulos_criticos: criticos,
+      fecha_completado: new Date().toISOString().split('T')[0],
+      estado:           'completado',
+      scores_modulos:   scores,
+      duracion_plan:    duracion,
+    }).eq('id', window._DIAG_ID);
+
+    if(error){ console.warn('sbGuardarScores error:', error); return; }
+    console.log('✅ Scores guardados en Supabase:', {globalScore, nivel, duracion});
+    window._SCORES_MODULOS = scores;
+    window._GLOBAL_SCORE   = globalScore;
+    window._NIVEL_MADUREZ  = nivel;
+    window._DURACION_PLAN  = duracion;
+  } catch(e){ console.warn('sbGuardarScores exception:', e); }
+}
+
+async function sbGuardarTareasPlan(phases){
+  if(!SB || !window._DIAG_ID || !phases || !phases.length) return;
+  try{
+    // Construir filas para insertar en tareas_plan
+    const filas = [];
+    phases.forEach(phase => {
+      const mods = phase.mods || [];
+      // Una tarea general por fase
+      filas.push({
+        diagnostico_id: window._DIAG_ID,
+        fase:           phase.num,
+        modulo_id:      null,
+        descripcion:    phase.title + ': ' + phase.desc,
+        responsable:    'Consultor FMC DataLab',
+        estado:         'pendiente',
+        prioridad:      phase.num === 1 ? 'alta' : phase.num === 2 ? 'media' : 'baja',
+        fecha_vence:    getFechaFase(phase.num, window._DURACION_PLAN || 90),
+      });
+      // Una tarea por cada módulo en la fase
+      mods.forEach(mod => {
+        const pct = Math.round(getModPct(mod));
+        filas.push({
+          diagnostico_id: window._DIAG_ID,
+          fase:           phase.num,
+          modulo_id:      mod.id,
+          descripcion:    `[${mod.label}] Módulo en ${pct}% — ${phase.title}`,
+          responsable:    mod.owner || 'Gerencia',
+          estado:         'pendiente',
+          prioridad:      pct <= 60 ? 'alta' : pct <= 80 ? 'media' : 'baja',
+          fecha_vence:    getFechaFase(phase.num, window._DURACION_PLAN || 90),
+        });
+      });
+    });
+
+    if(!filas.length) return;
+    // Borrar tareas anteriores del mismo diagnóstico antes de insertar
+    await SB.from('tareas_plan').delete().eq('diagnostico_id', window._DIAG_ID);
+    const { error } = await SB.from('tareas_plan').insert(filas);
+    if(error){ console.warn('sbGuardarTareasPlan error:', error); return; }
+    console.log(`✅ ${filas.length} tareas del plan guardadas en Supabase`);
+  } catch(e){ console.warn('sbGuardarTareasPlan exception:', e); }
+}
+
+function getFechaFase(fase, duracionTotal){
+  const hoy = new Date();
+  const dias = fase === 1 ? 30 : fase === 2 ? Math.min(60, duracionTotal) : duracionTotal;
+  hoy.setDate(hoy.getDate() + dias);
+  return hoy.toISOString().split('T')[0];
 }
 
 /* ── ROI CALCULATOR ── */
+
 const ROI_FACTORS={
   esp:{1:.12,2:.07,3:.035,4:.32,5:.18,6:.32,7:.28,8:.025},
   cons:{1:.072,2:.042,3:.021,4:.192,5:.108,6:.192,7:.168,8:.015},
