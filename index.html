@@ -495,6 +495,29 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--ink);min-
 .roi-split-bar{display:flex;height:6px;border-radius:100px;overflow:hidden;gap:2px;margin:6px 0}
 .roi-ahorro-total{font-family:'Syne',sans-serif;font-size:13px;font-weight:800;color:var(--green)}
 .roi-ingreso-total{font-family:'Syne',sans-serif;font-size:13px;font-weight:800;color:#1d4ed8}
+
+/* ── RESPONSIVE ── */
+@media(max-width:900px){.frow2,.frow3{grid-template-columns:1fr!important;}}
+@media(max-width:768px){
+  .topbar-r .uname{display:none;}
+  .sidebar{position:fixed;left:-240px;top:0;height:100vh;z-index:200;transition:left .25s;box-shadow:4px 0 24px rgba(0,0,0,.15);}
+  .sidebar.open{left:0;}
+  .layout{flex-direction:column;}
+  .main{padding:12px!important;}
+  .wiz-steps{flex-direction:column;gap:4px;}
+  .wstep{border-right:none!important;border-bottom:1px solid var(--rule)!important;padding:8px 14px!important;}
+  .ind-groups{grid-template-columns:1fr 1fr!important;}
+  .stats-grid{grid-template-columns:1fr 1fr!important;}
+}
+@media(max-width:480px){
+  .ind-groups,.stats-grid{grid-template-columns:1fr!important;}
+}
+@media print{
+  .sidebar,.topbar,#topbar-save,.btn,#launch-modal{display:none!important;}
+  .layout{display:block!important;}
+  .card{box-shadow:none!important;border:1px solid #ccc!important;}
+  @page{margin:1.5cm;}
+}
 </style>
 
 </head>
@@ -530,6 +553,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--ink);min-
 
 <!-- ═══ APP ═══ -->
 <div class="topbar">
+  <button id="hamburger" style="display:none;align-items:center;justify-content:center;width:32px;height:32px;border-radius:7px;border:1.5px solid rgba(255,255,255,.25);background:none;cursor:pointer;font-size:15px;color:rgba(255,255,255,.85);margin-right:8px;flex-shrink:0" onclick="toggleSidebar()">☰</button>
   <div class="brand"><div class="brand-dot"></div>EBIT-Q</div>
   <div style="font-size:9px;color:rgba(255,255,255,.5);font-weight:500;margin-left:16px;margin-top:-4px">FMC DataLab</div>
   <div class="topbar-r">
@@ -979,9 +1003,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--ink);min-
       <div class="psub" id="res-sub">Calculado a partir de las respuestas ingresadas</div>
     </div>
     <div style="display:flex;gap:7px;padding-top:4px">
-      <button class="btn btn-sec btn-sm" onclick="toast('📄 Reporte PDF generado · Descargando...')">📄 Exportar PDF</button>
-      <button class="btn btn-primary btn-sm" onclick="toast('📑 Reporte Word exportado')">📑 Word editable</button>
-    </div>
+      <button class="btn btn-primary btn-sm" onclick="generarReporte()" title="Genera el informe ejecutivo completo listo para imprimir o guardar como PDF desde el navegador">📄 Generar Reporte PDF</button></div>
   </div>
   <div class="g4 mb16" id="res-metrics"></div>
   <div class="card mb16">
@@ -1505,11 +1527,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--ink);min-
 <!-- ══════════════════════════════════════════════════════
      PANEL LATERAL DE USUARIO
 ══════════════════════════════════════════════════════ -->
-<div id="upanel-overlay" onclick="closeUserPanelIfBg(event)">
+<div id="upanel-overlay" onclick="umClickOverlay(event)">
   <div id="upanel">
     <div class="up-header">
       <div class="up-title" id="upanel-title">Perfil de usuario</div>
-      <button class="up-close" onclick="closeUserPanel()" title="Cerrar">✕</button>
+      <button class="up-close" onclick="closeUserModal()" title="Cerrar">✕</button>
     </div>
     <div class="up-body" id="upanel-body"></div>
     <div class="up-footer" id="upanel-footer"></div>
@@ -1549,6 +1571,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--ink);min-
 <script>
 'use strict';
 /* ══════════════════════════════════════════════════
+   ⚠️  ROADMAP: Bloque Q (~419K chars) → migrar a tabla "preguntas"
+   en Supabase: archivo 682KB → ~100KB, sin deploy para actualizar.
+   ══════════════════════════════════════════════════
    DATA — ADAPTIVE QUESTIONS BY MODULE × INDUSTRY
 ══════════════════════════════════════════════════ */
 const Q = {
@@ -3626,6 +3651,15 @@ const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFz
 
 let SB = null; // cliente Supabase inicializado al cargar
 let SB_SESSION = null; // sesión activa
+/* SESSION — objeto centralizado que consolida CURRENT_USER + _loginRole + SB_SESSION */
+const SESSION = {
+  get user(){ return SB_SESSION?.user || null; },
+  get email(){ return SB_SESSION?.user?.email || null; },
+  get role(){ return window._loginRole || null; },
+  get isCEO(){ return window._loginRole === 'ceo'; },
+  get isActive(){ return !!SB_SESSION; },
+  get diagId(){ return window._DIAG_ID || null; },
+};
 
 function initSupabase(){
   try {
@@ -3676,25 +3710,10 @@ async function goMFA(){
       return;
     } catch(e){
       console.warn('Supabase auth error:', e);
-      // fallback a validación local
+      if(errorEl){ errorEl.style.display='block'; errorEl.textContent='⚠ Error de conexión. Verifica tu internet e intenta nuevamente.'; }
+      if(btnCont){ btnCont.textContent='Continuar →'; btnCont.disabled=false; }
     }
   }
-
-  // FALLBACK LOCAL (cuando Supabase no está configurado aún)
-  const VALID = [{ user:'consultorceo', pwd:'-Mariadelmar1015', role:'ceo' }];
-  const match = VALID.find(v => v.user === userInput && v.pwd === pwd);
-  if(!match){
-    if(errorEl){ errorEl.style.display='block'; errorEl.textContent='⚠ Usuario o contraseña incorrectos.'; }
-    const pwdEl = document.getElementById('lpwd');
-    if(pwdEl){ pwdEl.style.borderColor='var(--red)'; setTimeout(()=>pwdEl.style.borderColor='',2000); }
-    if(btnCont){ btnCont.textContent='Continuar →'; btnCont.disabled=false; }
-    return;
-  }
-  if(errorEl) errorEl.style.display='none';
-  window._loginRole = match.role;
-  if(btnCont){ btnCont.textContent='Continuar →'; btnCont.disabled=false; }
-  document.getElementById('ls1').style.display='none';
-  document.getElementById('ls2').style.display='block';
 }
 function doLogin(){
   const isCEO = window._loginRole === 'ceo';
@@ -3821,6 +3840,26 @@ function fillSummary(){
   }).join('');
 }
 function launch(){
+  const empVal = document.getElementById('f-emp')?.value?.trim();
+  const turVal = document.getElementById('f-turnos')?.value;
+  if(!empVal){
+    document.getElementById('launch-modal').classList.remove('show');
+    toast('⚠️ Ingresa el nombre de la empresa (paso 1) antes de lanzar');
+    setTimeout(()=>{ nav('config', document.getElementById('nav-config')); goStep(1); }, 400);
+    return;
+  }
+  if(!ST.grpId||!ST.profId){
+    document.getElementById('launch-modal').classList.remove('show');
+    toast('⚠️ Selecciona el tipo de industria y perfil (paso 3) antes de lanzar');
+    setTimeout(()=>{ nav('config', document.getElementById('nav-config')); goStep(3); }, 400);
+    return;
+  }
+  if(!turVal){
+    document.getElementById('launch-modal').classList.remove('show');
+    toast('⚠️ Selecciona los turnos de trabajo (paso 3) antes de lanzar');
+    setTimeout(()=>{ nav('config', document.getElementById('nav-config')); goStep(3); }, 400);
+    return;
+  }
   document.getElementById('launch-modal').classList.remove('show');
   ST.launched=true;
   const emp=document.getElementById('f-emp')?.value||'Sin nombre';
@@ -4129,6 +4168,7 @@ function buildResults(){
     </div>`;
   }).join('')||`<div class="card" style="padding:24px;text-align:center;color:var(--ink3)"><div style="font-size:28px;margin-bottom:10px">📋</div><div>Responde las preguntas de los módulos para ver el análisis aquí.</div></div>`;
 
+  if(window._DIAG_ID) sbGuardarScores();
   updateDashboard();
 }
 
@@ -4301,6 +4341,27 @@ function buildPlan(){
   // ── Persistir resultados en Supabase para 90D Autopilot ──
   sbGuardarScores();
   sbGuardarTareasPlan(phases);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   SUPABASE STORAGE — Repositorio de documentos por cliente
+   ACTIVAR: Supabase Dashboard > Storage > Create bucket "ebitq-documentos" (Private)
+════════════════════════════════════════════════════════════════ */
+async function sbSubirArchivo(file, clienteId, diagId, modId, pregIdx){
+  if(!SB||!SB_SESSION) return null;
+  try{
+    const ext  = file.name.split('.').pop();
+    const path = `clientes/${clienteId}/diagnosticos/${diagId}/evidencias/${modId}_${pregIdx}_${Date.now()}.${ext}`;
+    const { error } = await SB.storage.from('ebitq-documentos').upload(path, file, {upsert:true});
+    if(error){ console.warn('sbSubirArchivo error:', error); return null; }
+    const url = SB.storage.from('ebitq-documentos').getPublicUrl(path).data?.publicUrl;
+    await SB.from('archivos_evidencia').insert({
+      diagnostico_id: diagId, modulo_id: modId, pregunta_idx: pregIdx,
+      nombre_archivo: file.name, tipo_mime: file.type, tamano_bytes: file.size, url_storage: url,
+    });
+    toast('✅ Archivo adjunto: '+file.name);
+    return url;
+  } catch(e){ console.error('sbSubirArchivo:', e); toast('❌ Error subiendo archivo'); return null; }
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -5581,7 +5642,10 @@ function buildCEODashboard(){
   // Intentar cargar datos reales de Supabase primero
   sbCargarCEODashboard().then(loaded => {
     if(!loaded){
-      // Fallback a datos de demostración
+      // Fallback a datos de demostración — avisar al consultor
+      const badge = document.getElementById('ceo-demo-badge');
+      if(badge) badge.style.display = 'flex';
+      console.info('ℹ️ Panel CEO: mostrando datos demo — completa un diagnóstico real');
       buildClientesTable();
       buildPlanesView();
       buildTareasView();
@@ -5703,9 +5767,12 @@ function buildTareasViewReal(tareas){
 async function toggleTaskEstado(taskId, estadoActual){
   if(!SB || !SB_SESSION) return;
   const sig = estadoActual==='pendiente'?'en_progreso':estadoActual==='en_progreso'?'completada':'pendiente';
-  await SB.from('tareas_plan').update({estado:sig}).eq('id',taskId);
-  sbCargarCEODashboard(); // refresh
-  toast(`✅ Tarea actualizada → ${sig}`);
+  try{
+    const { error } = await SB.from('tareas_plan').update({estado:sig}).eq('id',taskId);
+    if(error){ toast('❌ Error actualizando tarea'); console.warn(error); return; }
+    sbCargarCEODashboard();
+    toast(`✅ Tarea actualizada → ${sig}`);
+  } catch(e){ toast('❌ Error de conexión'); console.error(e); }
 }
 
 function verDiagnostico(diagId){
@@ -6016,17 +6083,41 @@ async function sbCrearDiagnostico(clienteNombre, perfil, grupo, turnos){
     if(clientes && clientes.length > 0){
       clienteId = clientes[0].id;
     } else {
+      const getF = id => { const el=document.getElementById(id); if(!el) return null; const v=el.value.replace(/[^0-9.]/g,''); return v?parseFloat(v):null; };
       const { data: nuevo } = await SB.from('clientes').insert({
-        nombre: clienteNombre, perfil_industria: perfil, grupo_industria: grupo
+        nombre: clienteNombre, perfil_industria: perfil, grupo_industria: grupo,
+        consultor_id: SB_SESSION?.user?.id || null,
+        nit:                document.getElementById('f-nit')?.value?.trim()||null,
+        ciudad:             document.getElementById('f-city')?.value?.trim()||null,
+        num_empleados:      getF('f-emp2'),
+        anos_operacion:     getF('f-anos'),
+        ventas_anuales:     getF('f-ventas-fin') || getF('f-ventas'),
+        nombre_gerente:     document.getElementById('f-ger')?.value?.trim()||null,
+        cargo_gerente:      document.getElementById('f-cargo')?.value?.trim()||null,
+        email_reporte:      document.getElementById('f-email')?.value?.trim()||null,
+        descripcion_operacion: document.getElementById('f-desc')?.value?.trim()||null,
+        costo_ventas:       getF('f-cogs-fin'),
+        gastos_operativos:  getF('f-gop-fin'),
+        ebitda:             getF('f-ebitda-fin'),
+        nomina_mensual:     getF('f-nomina-fin'),
+        inventario_promedio:getF('f-inv-fin'),
+        clientes_activos:   getF('f-cli-fin'),
+        pct_devoluciones:   getF('f-dev-fin'),
+        pct_rotacion:       getF('f-rot-fin'),
+        salario_rotacion:   getF('f-salrot-fin'),
+        valor_propuesta:    getF('f-valprop-fin'),
       }).select('id').single();
       if(nuevo) clienteId = nuevo.id;
     }
     if(!clienteId) return null;
     // Crear el diagnóstico
     const { data: diag } = await SB.from('diagnosticos').insert({
-      cliente_id: clienteId,
-      estado: 'en_progreso',
-      turnos_trabajo: turnos || '1'
+      cliente_id:     clienteId,
+      consultor_id:   SB_SESSION?.user?.id || null,
+      estado:         'en_progreso',
+      turnos_trabajo: turnos || '1',
+      tipo_operacion: document.getElementById('f-op')?.value || null,
+      subsector:      document.getElementById('f-sub')?.value?.trim() || null,
     }).select('id').single();
     if(diag){ window._DIAG_ID = diag.id; return diag.id; }
   } catch(e){ console.warn('Error creando diagnóstico en Supabase:', e); }
@@ -6034,10 +6125,9 @@ async function sbCrearDiagnostico(clienteNombre, perfil, grupo, turnos){
 }
 
 async function sbCerrarSesion(){
-  if(SB) await SB.auth.signOut().catch(e=>console.warn(e));
-  SB_SESSION = null;
-  window._loginRole = null;
-  window._DIAG_ID   = null;
+  try{ if(SB) await SB.auth.signOut(); }
+  catch(e){ console.warn('sbCerrarSesion:', e); }
+  finally{ SB_SESSION = null; window._loginRole = null; window._DIAG_ID = null; }
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -6344,14 +6434,13 @@ function setPerm(pid, perm, val, btn){
   toast(val ? `✅ ${p?.nombre}: ${perm} permitido` : `⛔ ${p?.nombre}: ${perm} restringido`);
 }
 
-function cambiarPassword(){
+async function cambiarPassword(){
   const actual   = document.getElementById('pw-actual')?.value || '';
   const nueva    = document.getElementById('pw-nueva')?.value  || '';
   const confirma = document.getElementById('pw-confirm')?.value || '';
-  // Validar contraseña actual
-  const VALID_PWD = '-Mariadelmar1015'; // En producción vendrá de Supabase
-  if(actual !== VALID_PWD){
-    toast('❌ La contraseña actual no es correcta'); return;
+  // Validar contraseña via Supabase Auth (re-autenticación antes de cambiar)
+  if(!actual){
+    toast('❌ Ingresa tu contraseña actual'); return;
   }
   if(nueva === actual){
     toast('❌ La nueva contraseña debe ser diferente a la actual'); return;
@@ -6362,9 +6451,14 @@ function cambiarPassword(){
   if(nueva !== confirma){
     toast('❌ Las contraseñas no coinciden'); return;
   }
-  // En producción: llamar supabase.auth.updateUser({ password: nueva })
-  closeUserModal();
-  toast('✅ Contraseña actualizada correctamente');
+  // Cambiar contraseña via Supabase Auth
+  if(!window.SB){ toast('❌ Error de conexión'); return; }
+  try{
+    const { error } = await window.SB.auth.updateUser({ password: nueva });
+    if(error){ toast('❌ ' + (error.message || 'No se pudo cambiar la contraseña')); return; }
+    closeUserModal();
+    toast('✅ Contraseña actualizada correctamente');
+  } catch(e){ toast('❌ Error al cambiar contraseña'); console.error(e); }
 }
 
 /* ══════════════════════════════════
@@ -6498,6 +6592,13 @@ function getFinVal(id){
 
 /* Sincronizar campos del wizard → ROI al lanzar o al abrir ROI */
 function syncROI(){
+  // Sincronizar f-ventas (paso 1) ↔ f-ventas-fin (paso 2) — evitar duplicidad
+  const v1 = document.getElementById('f-ventas');
+  const v2 = document.getElementById('f-ventas-fin');
+  if(v1 && v2){
+    if(v1.value && !v2.value) v2.value = parseInt(v1.value.replace(/[^0-9]/g,'')).toLocaleString('es-CO');
+    else if(v2.value && !v1.value) v1.value = v2.value;
+  }
   const map = [
     ['f-ventas-fin',  'roi-ventas'],
     ['f-cogs-fin',    'roi-cogs'],
@@ -6580,6 +6681,303 @@ function formatCOP(n){
   return '$' + Math.round(n).toLocaleString('es-CO');
 }
 
+/* ── TABLA documentos_cliente (ejecutar en Supabase SQL Editor cuando se active Storage):
+   CREATE TABLE IF NOT EXISTS documentos_cliente (
+     id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+     cliente_id uuid REFERENCES clientes(id) ON DELETE CASCADE,
+     diagnostico_id uuid REFERENCES diagnosticos(id),
+     tipo text, nombre_archivo text NOT NULL, url_storage text,
+     subido_por uuid REFERENCES usuarios(id), creado_en timestamptz DEFAULT now()
+   );
+   ALTER TABLE documentos_cliente ENABLE ROW LEVEL SECURITY;
+   CREATE POLICY "auth_only" ON documentos_cliente FOR ALL USING (auth.role()='authenticated');
+── */
+
+/* ════════════════════════════════════════════════════════════════
+   GENERADOR DE REPORTE EBIT-Q — PDF via window.print()
+   Estructura: datos empresa → nivel global → módulos menor→mayor
+   → hallazgos por módulo → sugerencias → ROI detallado
+   Pie de página: EBIT-Q by FMC DataLab (marca de agua)
+════════════════════════════════════════════════════════════════ */
+function generarReporte(){
+  const mods   = getMods();
+  const active = mods.filter(m => modActive(m.k) && m.qs.some((_,qi) => ST.ans[m.id+'_'+qi]>0));
+  const tMax   = active.reduce((s,m)=>s+m.max,0);
+  const tScore = active.reduce((s,m)=>s+m.qs.reduce((ss,_,qi)=>ss+(ST.ans[m.id+'_'+qi]||0),0),0);
+  const gPct   = tMax>0?Math.round(tScore/tMax*100):0;
+  const lvl    = gPct<=20?'Reactivo':gPct<=40?'Definido':gPct<=60?'Controlado':gPct<=80?'Gestionado':'Optimizado';
+  const lvlC   = gPct<=40?'#DC2626':gPct<=60?'#D97706':gPct<=80?'#0369A1':'#16A34A';
+  const sorted = [...active].sort((a,b)=>getModPct(a)-getModPct(b));
+  const labels = {1:'No existe',2:'Parcial',3:'En desarrollo',4:'Consolidado'};
+
+  const gV = id => document.getElementById(id)?.value||'';
+  const empresa   = gV('f-emp')  || '—';
+  const nit       = gV('f-nit')  || '—';
+  const ciudad    = gV('f-city') || '—';
+  const gerente   = gV('f-ger')  || '—';
+  const cargo     = gV('f-cargo')|| '—';
+  const email     = gV('f-email')|| '—';
+  const anos      = gV('f-anos') || '—';
+  const empleados = gV('f-emp2') || '—';
+  const ventas    = gV('f-ventas-fin')||gV('f-ventas')||'—';
+  const tipoOp    = gV('f-op')   || ST.optype||'—';
+  const subsector = gV('f-sub')  || ST.sub||'—';
+  const turnos    = gV('f-turnos')|| ST.turnos||'1';
+  const consultor = gV('f-consultor')||'—';
+  const industria = ST.grpName  ||'—';
+  const perfil    = ST.profName ||'—';
+  const fechaDiag = new Date().toLocaleDateString('es-CO',{year:'numeric',month:'long',day:'numeric'});
+  const fechaISO  = new Date().toISOString().split('T')[0];
+
+  // ROI
+  const pN = (id,def) => parseFloat(document.getElementById(id)?.value?.replace(/[$.]/g,'').replace(',','.')||def);
+  const vv=pN('roi-ventas','12000000000'),cogs=pN('roi-cogs','8400000000'),
+        gop=pN('roi-gop','1800000000'),ebitda=pN('roi-ebitda','1800000000'),
+        nom=pN('roi-nomina','280000000')*12,invV=pN('roi-inv','1200000000'),
+        dev=pN('roi-dev','3')/100,cli=pN('roi-cli','120'),
+        rotPct=pN('roi-rot','20')/100,salRot=pN('roi-salrot','3500000'),
+        propPerd=pN('roi-propperd','5')/100,valProp=pN('roi-valprop','15000000'),
+        numEmp=pN('roi-numemp','50');
+  const sc=ST.scenario||'esp';
+  const mult=sc==='cons'?0.6:sc==='opt'?1.4:1.0;
+  const ROI_DETAIL=getROIDetail();
+  let gTotal=0,gAhorro=0,gIngreso=0;
+
+  const roiMods=Object.entries(ROI_DETAIL).map(([idStr,mod])=>{
+    const id=parseInt(idStr);const modKey=MOD_KEYS[id-1];
+    if(!modActive(modKey))return null;
+    const m=mods.find(x=>x.id===id);const pct=m?getModPct(m):50;
+    const bf=pct<=60?1.0:pct<=80?0.6:0.3;
+    let mA=0,mI=0;
+    const cps=mod.conceptos.map(cp=>{
+      const raw=cp.calc(vv,cogs,nom,invV,dev,gop,ebitda,cli,rotPct,salRot,propPerd,valProp,numEmp);
+      const val=Math.round(raw*bf*mult);
+      if(cp.tipo==='ahorro')mA+=val;else if(cp.tipo==='ingreso')mI+=val;else{mA+=Math.round(val*0.4);mI+=Math.round(val*0.6);}
+      return{nombre:cp.nombre,tipo:cp.tipo,formula:cp.formula,porq:cp.porqué,impl:cp.impl,val};
+    });
+    const mT=mA+mI;gTotal+=mT;gAhorro+=mA;gIngreso+=mI;
+    return{id,label:mod.label,pct,mA,mI,mT,cps};
+  }).filter(Boolean);
+
+  const inv_diag=8000000;
+  const roi_pct=gTotal>0?Math.round((gTotal-inv_diag)/inv_diag*100):0;
+  const rec_m=gTotal>0?Math.round(inv_diag/(gTotal/12)):0;
+
+  const fC=n=>'$'+Math.round(n).toLocaleString('es-CO');
+  const bC=p=>p<=60?'#DC2626':p<=80?'#D97706':'#16A34A';
+  const getBD=p=>p<=60?'Crítico':p<=80?'En desarrollo':'Avanzado';
+
+  const css=`
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+@page{size:A4;margin:18mm 15mm 24mm 15mm}
+body{font-family:'Segoe UI',Arial,sans-serif;font-size:10.5pt;color:#0F172A;line-height:1.55;background:#fff}
+.rep-hdr{display:flex;align-items:flex-start;justify-content:space-between;padding-bottom:12px;border-bottom:3px solid #0D9488;margin-bottom:18px}
+.brand{font-size:26pt;font-weight:900;color:#0D9488;letter-spacing:-.03em;line-height:1}
+.brand-sub{font-size:8pt;color:#64748B;margin-top:2px}
+.meta{text-align:right;font-size:8.5pt;color:#64748B}
+.meta strong{color:#0F172A;display:block;font-size:9.5pt}
+.sec-title{font-size:11pt;font-weight:700;color:#0F766E;border-bottom:1.5px solid #CCFBF1;padding-bottom:4px;margin:20px 0 10px;text-transform:uppercase;letter-spacing:.04em}
+.emp-grid{display:grid;grid-template-columns:1fr 1fr;border:1px solid #E2E8F0;border-radius:7px;overflow:hidden}
+.ek{padding:5px 10px;font-size:9pt;font-weight:600;color:#334155;border-bottom:1px solid #E2E8F0;background:#F8FAFC}
+.ev{padding:5px 10px;font-size:9pt;color:#0F172A;border-bottom:1px solid #E2E8F0;border-left:1px solid #E2E8F0}
+.mad-box{display:flex;align-items:center;gap:20px;background:#F0FDFA;border:2px solid #CCFBF1;border-radius:10px;padding:14px 18px;margin:12px 0}
+.mad-pct{font-size:42pt;font-weight:900;line-height:1}
+.mad-nivel{font-size:16pt;font-weight:800;line-height:1.1}
+.mad-sub{font-size:9pt;color:#64748B;margin-top:3px}
+.mad-bar{height:10px;background:#E2E8F0;border-radius:5px;overflow:hidden;width:200px;margin-top:6px}
+.mad-fill{height:10px;border-radius:5px}
+.mod-tbl{width:100%;border-collapse:collapse;margin:10px 0}
+.mod-tbl th{font-size:8pt;font-weight:700;color:#64748B;text-transform:uppercase;padding:5px 7px;border-bottom:2px solid #E2E8F0;text-align:left}
+.mod-tbl td{padding:6px 7px;border-bottom:1px solid #F1F5F9;font-size:9pt;vertical-align:middle}
+.bgt{display:inline-block;padding:1px 7px;border-radius:9px;font-size:7.5pt;font-weight:700}
+.bar-bg{height:7px;background:#E2E8F0;border-radius:4px;overflow:hidden;min-width:60px}
+.bar-f{height:7px;border-radius:4px}
+.mod-card{border:1px solid #E2E8F0;border-radius:8px;margin-bottom:12px;page-break-inside:avoid;overflow:hidden}
+.mod-card-hdr{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #E2E8F0;background:#F8FAFC}
+.mc-num{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10pt;font-weight:800;color:#fff;flex-shrink:0}
+.mc-title{font-size:10.5pt;font-weight:700;flex:1}
+.mc-pct{font-size:13pt;font-weight:900}
+.mod-card-body{padding:10px 14px}
+.sug-box{background:#F0FDFA;border-left:3px solid #0D9488;padding:7px 11px;border-radius:0 6px 6px 0;font-size:9pt;color:#334155;margin-bottom:10px;line-height:1.6}
+.sug-box b{color:#0F766E;display:block;font-size:8pt;text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px}
+.hall-title{font-size:8pt;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:.05em;margin:8px 0 5px}
+.hall-row{display:flex;gap:7px;padding:5px 0;border-bottom:1px solid #F1F5F9;align-items:flex-start;font-size:9pt}
+.hall-row:last-child{border-bottom:none}
+.hall-q{flex:1;color:#334155}
+.hall-qq{font-weight:600;margin-bottom:2px}
+.hall-h{font-size:7.5pt;color:#64748B}
+.hall-e{font-size:7pt;color:#0D9488;margin-top:2px}
+.hall-lv{font-size:7.5pt;font-weight:700;padding:2px 7px;border-radius:8px;white-space:nowrap;flex-shrink:0}
+.lv1{background:#FEF2F2;color:#DC2626} .lv2{background:#FEF3C7;color:#D97706}
+.lv3{background:#EFF6FF;color:#1D4ED8}
+.no-hall{background:#F0FDF4;border-left:3px solid #16A34A;padding:7px 11px;border-radius:0 6px 6px 0;font-size:9pt;color:#166534}
+.roi-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:10px 0}
+.rs{border-radius:7px;padding:10px 12px;text-align:center}
+.rs-val{font-size:14pt;font-weight:900;line-height:1}
+.rs-lbl{font-size:7.5pt;color:#64748B;margin-top:2px}
+.roi-tbl{width:100%;border-collapse:collapse;margin-top:10px}
+.roi-tbl th{font-size:7.5pt;font-weight:700;color:#64748B;text-transform:uppercase;padding:5px 7px;border-bottom:2px solid #E2E8F0;text-align:left}
+.roi-tbl td{padding:5px 7px;border-bottom:1px solid #F1F5F9;font-size:8.5pt;vertical-align:top}
+.roi-nom{font-weight:600;color:#334155;margin-bottom:2px;font-size:9pt}
+.roi-for{font-size:7.5pt;color:#64748B}
+.roi-why{font-size:8pt;color:#64748B;line-height:1.4;margin-bottom:2px}
+.roi-impl{font-size:7.5pt;color:#0D9488;line-height:1.4}
+.tc-a{display:inline-block;font-size:7pt;font-weight:700;padding:1px 5px;border-radius:7px;background:#F0FDF4;color:#16A34A}
+.tc-i{display:inline-block;font-size:7pt;font-weight:700;padding:1px 5px;border-radius:7px;background:#EFF6FF;color:#1D4ED8}
+.tc-m{display:inline-block;font-size:7pt;font-weight:700;padding:1px 5px;border-radius:7px;background:#FEF3C7;color:#D97706}
+.warn{background:#FEF3C7;padding:7px 11px;border-radius:6px;font-size:8.5pt;color:#92400E;margin-bottom:10px}
+.next{margin-top:14px;padding:10px 14px;border:1px solid #CCFBF1;border-radius:7px;background:#F0FDFA}
+.next-title{font-size:9pt;font-weight:700;color:#0F766E;margin-bottom:5px}
+.next-body{font-size:8.5pt;color:#334155;line-height:1.7}
+.footer{position:fixed;bottom:0;left:0;right:0;border-top:1.5px solid #CCFBF1;padding:5px 15mm;display:flex;justify-content:space-between;align-items:center;font-size:7.5pt;color:#64748B;background:#fff}
+.footer-brand{font-weight:700;color:#0D9488}
+.footer-wm{font-size:7pt;color:#CBD5E1;font-style:italic}
+.page-break{page-break-before:always}
+.exec-sum{background:#F0FDFA;border:1.5px solid #CCFBF1;border-radius:8px;padding:12px 16px;margin-bottom:14px;font-size:9.5pt;color:#334155;line-height:1.65}
+@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}`;
+
+  const modDetailHTML = sorted.map((m,i)=>{
+    const pct=getModPct(m);const col=bC(pct);
+    const rec=pct<=40?'Intervención inmediata — construir bases operativas. Asignar responsable, entregables e hitos en las primeras 4 semanas del plan de 90 días.':
+              pct<=65?'La base existe pero es inconsistente. Formalizar, documentar y establecer seguimiento periódico con indicadores medibles.':
+              pct<=85?'Buen nivel. Identificar oportunidades de automatización y mejora continua. Pasar de "en desarrollo" a "consolidado".':
+              'Módulo consolidado. Documentar buenas prácticas como referencia interna y revisar en el próximo ciclo de diagnóstico.';
+    const lowQs=m.qs.map((q,qi)=>({q,qi,v:ST.ans[m.id+'_'+qi]||0})).filter(x=>x.v>0&&x.v<=2);
+    const midQs=m.qs.map((q,qi)=>({q,qi,v:ST.ans[m.id+'_'+qi]||0})).filter(x=>x.v===3);
+    const allAns=m.qs.filter((_,qi)=>ST.ans[m.id+'_'+qi]>0).length;
+    const obsC=m.qs.filter((_,qi)=>ST.obs[m.id+'_'+qi]?.trim()).length;
+    return `<div class="mod-card">
+      <div class="mod-card-hdr">
+        <div class="mc-num" style="background:${col}">${i+1}</div>
+        <div style="flex:1">
+          <div class="mc-title">${m.title}</div>
+          <div style="font-size:8pt;color:#64748B">${m.desc||''} · ${allAns}/${m.qs.length} respondidas · ${obsC} obs.</div>
+        </div>
+        <div style="text-align:right">
+          <div class="mc-pct" style="color:${col}">${pct}%</div>
+          <div style="font-size:7.5pt;color:#64748B">${getBD(pct)}</div>
+        </div>
+      </div>
+      <div class="mod-card-body">
+        <div class="sug-box"><b>Sugerencia del consultor</b>${rec}</div>
+        ${lowQs.length>0?`<div class="hall-title">Hallazgos críticos — calificación 1-2</div>
+        ${lowQs.map(({q,v})=>`<div class="hall-row">
+          <div class="hall-q">
+            <div class="hall-qq">${q.t}</div>
+            ${q.h?`<div class="hall-h">${q.h}</div>`:''}
+            ${q.e?`<div class="hall-e">📎 Evidencia: ${q.e}</div>`:''}
+          </div>
+          <span class="hall-lv ${v===1?'lv1':'lv2'}">${labels[v]}</span>
+        </div>`).join('')}`:''} 
+        ${midQs.length>0?`<div class="hall-title" style="margin-top:${lowQs.length>0?'10px':'0'}">En desarrollo — oportunidad de mejora</div>
+        ${midQs.map(({q})=>`<div class="hall-row">
+          <div class="hall-q">
+            <div class="hall-qq">${q.t}</div>
+            ${q.h?`<div class="hall-h">${q.h}</div>`:''}
+          </div>
+          <span class="hall-lv lv3">En desarrollo</span>
+        </div>`).join('')}`:''} 
+        ${lowQs.length===0&&midQs.length===0&&allAns>0?'<div class="no-hall">✅ No se identificaron hallazgos críticos en este módulo.</div>':''}
+      </div>
+    </div>`;
+  }).join('');
+
+  const roiRowsHTML = roiMods.filter(r=>r.mT>0).sort((a,b)=>b.mT-a.mT).map((rm,i)=>{
+    const activeCps = rm.cps.filter(cp=>cp.val>0);
+    if(!activeCps.length) return '';
+    const bg=i%2===0?'':' style="background:#FAFBFC"';
+    return activeCps.map((cp,ci)=>`<tr${bg}>
+      ${ci===0?`<td rowspan="${activeCps.length}" style="font-weight:700;font-size:9pt;color:#0F766E;vertical-align:top;padding-top:8px">${rm.label}<br><span style="font-size:7.5pt;font-weight:400;color:#64748B">${rm.pct}% madurez</span></td>`:''}
+      <td><div class="roi-nom">${cp.nombre}</div><div class="roi-for">${cp.formula}</div></td>
+      <td style="text-align:center"><span class="${cp.tipo==='ahorro'?'tc-a':cp.tipo==='ingreso'?'tc-i':'tc-m'}">${cp.tipo==='ahorro'?'Ahorro':cp.tipo==='ingreso'?'Ingreso':'Mixto'}</span></td>
+      <td style="text-align:right;font-weight:700;color:${cp.tipo==='ahorro'?'#16A34A':'#1D4ED8'}">${fC(cp.val)}</td>
+      <td><div class="roi-why">${cp.porq||''}</div><div class="roi-impl">→ ${cp.impl||''}</div></td>
+    </tr>`).join('');
+  }).join('');
+
+  const html=`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Informe EBIT-Q · ${empresa} · ${fechaISO}</title><style>${css}</style></head><body>
+<div class="footer"><div><span class="footer-brand">EBIT-Q</span> · Diagnóstico de Madurez Organizacional · ${empresa} · ${fechaISO}</div><div class="footer-wm">EBIT-Q by FMC DataLab · Confidencial · Solo uso interno</div></div>
+<div class="rep-hdr"><div><div class="brand">EBIT-Q</div><div class="brand-sub">FMC DataLab · Diagnóstico de Madurez Organizacional</div></div><div class="meta"><strong>Informe de diagnóstico ejecutivo</strong>Fecha: ${fechaDiag}<br>Consultor: ${consultor}<br>Confidencial</div></div>
+<div class="sec-title">1. Datos de la empresa</div>
+<div class="emp-grid">
+  <div class="ek">Razón social</div><div class="ev"><strong>${empresa}</strong></div>
+  <div class="ek">NIT</div><div class="ev">${nit}</div>
+  <div class="ek">Ciudad</div><div class="ev">${ciudad}</div>
+  <div class="ek">Años de operación</div><div class="ev">${anos} años</div>
+  <div class="ek">Empleados</div><div class="ev">${empleados}</div>
+  <div class="ek">Ventas anuales (COP)</div><div class="ev">${ventas}</div>
+  <div class="ek">Gerente / Contacto</div><div class="ev">${gerente}</div>
+  <div class="ek">Cargo</div><div class="ev">${cargo}</div>
+  <div class="ek">Email</div><div class="ev">${email}</div>
+  <div class="ek">Industria</div><div class="ev">${industria}</div>
+  <div class="ek">Perfil operativo</div><div class="ev">${perfil}</div>
+  <div class="ek">Tipo operación</div><div class="ev">${tipoOp}</div>
+  <div class="ek">Subsector</div><div class="ev">${subsector}</div>
+  <div class="ek">Turnos</div><div class="ev">${turnos} turno(s)</div>
+  <div class="ek">Módulos diagnosticados</div><div class="ev">${active.length} de ${mods.length}</div>
+</div>
+<div class="sec-title">2. Nivel de madurez organizacional</div>
+<div class="mad-box">
+  <div><div class="mad-pct" style="color:${lvlC}">${gPct}%</div></div>
+  <div><div class="mad-nivel" style="color:${lvlC}">${lvl}</div><div class="mad-sub">${active.length} módulos · ${active.reduce((s,m)=>s+m.qs.filter((_,qi)=>ST.ans[m.id+'_'+qi]>0).length,0)} preguntas</div><div class="mad-bar"><div class="mad-fill" style="width:${gPct}%;background:${lvlC}"></div></div><div style="display:flex;justify-content:space-between;font-size:7pt;color:#64748B;width:200px;margin-top:2px"><span>Reactivo</span><span>Definido</span><span>Controlado</span><span>Gestionado</span><span>Optimizado</span></div></div>
+</div>
+<div class="exec-sum">${gPct<=40?'<strong>Situación crítica.</strong> La empresa opera con bases organizacionales informales o inexistentes en la mayoría de sus módulos, lo que genera reprocesos, costos ocultos y dificultad para escalar. El plan de 90 días se enfoca en construir las bases fundamentales.':gPct<=60?'<strong>Transición hacia la formalización.</strong> La empresa tiene bases operativas pero con brechas importantes en documentación, seguimiento y gestión. El plan prioriza cerrar las brechas críticas y formalizar los procesos existentes.':gPct<=80?'<strong>Buen nivel de madurez.</strong> La empresa tiene procesos formalizados y controles establecidos. Las oportunidades están en automatización y mejora continua.':'<strong>Organización avanzada.</strong> Alto nivel de madurez. El plan se enfoca en optimización, automatización e innovación para mantener la ventaja competitiva.'}</div>
+<table class="mod-tbl"><thead><tr><th>#</th><th>Módulo</th><th>Estado</th><th>Puntaje</th><th>Barra</th><th>Resp.</th></tr></thead><tbody>
+${sorted.map((m,i)=>{const pct=getModPct(m);const col=bC(pct);const ans=m.qs.filter((_,qi)=>ST.ans[m.id+'_'+qi]>0).length;
+return `<tr style="${i%2===0?'':' background:#FAFBFC'}"><td style="color:${col};font-weight:800;font-size:10pt">${i+1}</td><td style="font-weight:600">${m.title}</td><td><span class="bgt" style="${pct<=60?'background:#FEF2F2;color:#DC2626':pct<=80?'background:#FEF3C7;color:#D97706':'background:#F0FDFA;color:#0F766E'}">${getBD(pct)}</span></td><td style="font-weight:800;color:${col}">${pct}%</td><td><div class="bar-bg"><div class="bar-f" style="width:${pct}%;background:${col}"></div></div></td><td style="font-size:8.5pt;color:#64748B">${ans}/${m.qs.length}</td></tr>`;}).join('')}
+</tbody></table>
+<div class="sec-title page-break">3. Análisis por módulo — del más crítico al más avanzado</div>
+${modDetailHTML}
+<div class="sec-title page-break">4. ROI estimado — impacto económico proyectado en COP</div>
+<div class="roi-stats">
+  <div class="rs" style="background:#F0FDF4;border:1.5px solid #86EFAC"><div class="rs-val" style="color:#16A34A">${fC(gTotal)}</div><div class="rs-lbl">Impacto total / año</div></div>
+  <div class="rs" style="background:#F0FDFA;border:1.5px solid #CCFBF1"><div class="rs-val" style="color:#0D9488">${fC(gAhorro)}</div><div class="rs-lbl">Ahorros en costos</div></div>
+  <div class="rs" style="background:#EFF6FF;border:1.5px solid #BFDBFE"><div class="rs-val" style="color:#1D4ED8">${fC(gIngreso)}</div><div class="rs-lbl">Ingresos adicionales</div></div>
+  <div class="rs" style="background:#F8FAFC;border:1px solid #E2E8F0"><div class="rs-val">${roi_pct}%</div><div class="rs-lbl">ROI vs inversión</div></div>
+  <div class="rs" style="background:#F8FAFC;border:1px solid #E2E8F0"><div class="rs-val">${rec_m} ${rec_m===1?'mes':'meses'}</div><div class="rs-lbl">Recuperación</div></div>
+</div>
+<div class="warn">⚠️ Estimación ${sc==='cons'?'conservadora (60%)':sc==='opt'?'optimista (140%)':'esperada (100%)'} basada en datos financieros ingresados y nivel de madurez del diagnóstico.</div>
+<table class="roi-tbl"><thead><tr><th style="width:18%">Módulo</th><th style="width:18%">Concepto</th><th style="width:8%;text-align:center">Tipo</th><th style="width:12%;text-align:right">COP / año</th><th>Por qué genera este impacto · Cómo implementarlo</th></tr></thead><tbody>
+${roiRowsHTML}
+</tbody><tfoot><tr style="background:#F0FDF4"><td colspan="3" style="font-weight:800;font-size:10pt;color:#16A34A;padding:8px">Total estimado / año</td><td style="font-weight:900;font-size:12pt;color:#16A34A;text-align:right">${fC(gTotal)}</td><td style="font-size:8pt;color:#64748B">Inversión diagnóstico: ${fC(inv_diag)} · ROI: ${roi_pct}% · Recuperación: ${rec_m} mes(es)</td></tr></tfoot></table>
+<div class="next"><div class="next-title">Próximos pasos</div><div class="next-body">1. Socializar este informe con el equipo directivo.<br>2. Validar el plan de 90 días con responsables de cada área.<br>3. Definir nivel de acompañamiento 90D Autopilot (Esencial / Estándar / Intensivo).<br>4. Iniciar seguimiento digital en 90D Autopilot.</div></div>
+<div style="margin-top:20px;padding-top:10px;border-top:1px solid #E2E8F0;display:flex;justify-content:space-between;font-size:8pt;color:#64748B">
+  <div><strong style="color:#0F172A">FMC DataLab · EBIT-Q</strong><br>Consultor: ${consultor} · ${fechaDiag}</div>
+  <div style="text-align:right;font-size:7pt;color:#CBD5E1;font-style:italic">Este informe es confidencial · ${empresa}<br>EBIT-Q by FMC DataLab · Diagnóstico de Madurez Organizacional</div>
+</div>
+</body></html>`;
+
+  const win=window.open('','_blank','width=950,height=750');
+  if(!win){toast('⚠️ Permite ventanas emergentes para generar el reporte');return;}
+  win.document.write(html);win.document.close();
+  win.onload=()=>setTimeout(()=>win.print(),800);
+  toast('📄 Reporte generado — se abrirá el diálogo de impresión/PDF');
+}
+
+/* ── SIDEBAR MÓVIL ── */
+function toggleSidebar(){
+  const sb = document.querySelector('.sidebar');
+  if(!sb) return;
+  sb.classList.toggle('open');
+  let ov = document.getElementById('sb-overlay');
+  if(!ov){
+    ov = document.createElement('div');
+    ov.id = 'sb-overlay';
+    Object.assign(ov.style, {position:'fixed',inset:'0',background:'rgba(0,0,0,.4)',zIndex:'199',display:'none'});
+    ov.onclick = () => { sb.classList.remove('open'); ov.style.display='none'; };
+    document.body.appendChild(ov);
+  }
+  ov.style.display = sb.classList.contains('open') ? 'block' : 'none';
+}
+// Activar hamburger en pantallas pequeñas
+(function initHamburger(){
+  const hb = document.getElementById('hamburger');
+  if(!hb) return;
+  const update = () => hb.style.display = window.innerWidth <= 768 ? 'flex' : 'none';
+  update();
+  window.addEventListener('resize', update);
+})();
+
 /* ── INIT ── */
 window.addEventListener('load',()=>{
   initSupabase();
@@ -6637,6 +7035,7 @@ window.addEventListener('load',()=>{
     <div class="card">
       <div class="card-hdr">
         <div class="card-ttl">Clientes con diagnóstico EBIT-Q</div>
+        <div id="ceo-demo-badge" style="display:none;align-items:center;gap:5px;font-size:11px;font-weight:600;background:#fef3c7;color:#d97706;padding:3px 10px;border-radius:20px;border:1px solid #fde68a">⚠️ Datos demo</div>
         <div style="display:flex;gap:8px">
           <input id="ceo-search" placeholder="Buscar cliente..." style="font-size:12px;padding:5px 10px;border:1px solid var(--rule);border-radius:6px;background:var(--surface);color:var(--ink)" oninput="filterClientes(this.value)">
           <button class="btn btn-primary btn-sm" onclick="openNewCliente()">+ Nuevo cliente</button>
