@@ -3456,6 +3456,8 @@ function stRestaurar(){
     ST.ans      = s.ans      || {};
     ST.obs      = s.obs      || {};
     if(s.diagId) window._DIAG_ID = s.diagId;
+    // Restaurar archivos adjuntos desde Supabase (asíncrono, no bloquea UI)
+    if(s.diagId) sbRestaurarArchivos(s.diagId);
 
     // Restaurar campos del formulario
     if(s.campos){
@@ -3985,7 +3987,7 @@ function buildModPanels(){
               ondrop="dropF(event,${m.id},${qi})"
               onclick="document.getElementById('fi-${key}').click()">
               📎 Arrastra archivos aquí o haz clic<br>
-              <span style="font-size:10px">PDF, Word, Excel, imágenes · Máx. 10 MB</span>
+              <span style="font-size:10px">PDF, Word, Excel, imágenes · Máx. 50 MB · Se sube a la nube</span>
             </div>
             <input type="file" id="fi-${key}" multiple style="display:none" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" onchange="handleF(event,${m.id},${qi})">
             <div class="flist" id="fl-${key}"></div>
@@ -4074,26 +4076,88 @@ function buildSidebarMini(){
 
 /* ── FILES ── */
 function dropF(e,mid,qi){e.preventDefault();e.currentTarget.classList.remove('drag');handleF({target:{files:e.dataTransfer.files}},mid,qi);}
-function handleF(e,mid,qi){
-  const key=`${mid}_${qi}`;if(!ST.files[key])ST.files[key]=[];
-  Array.from(e.target.files).forEach(f=>{
-    if(f.size>10*1024*1024){toast('⚠ Archivo muy grande · máx. 10 MB');return;}
-    ST.files[key].push({name:f.name,size:f.size});
-    renderFiles(mid,qi);toast('📎 '+f.name+' adjuntado');
-  });
+async function handleF(e,mid,qi){
+  const key=`${mid}_${qi}`;
+  if(!ST.files[key]) ST.files[key]=[];
+  const clienteId = window._CLIENTE_ID || null;
+  const diagId    = window._DIAG_ID    || null;
+  const modKey    = MOD_KEYS[mid-1]    || String(mid);
+
+  for(const f of Array.from(e.target.files)){
+    if(f.size>50*1024*1024){ toast('⚠️ Archivo muy grande · máx. 50 MB'); continue; }
+    // Mostrar en UI inmediatamente (optimistic update)
+    const tempEntry = { name:f.name, size:f.size, url:null, uploading:true };
+    ST.files[key].push(tempEntry);
+    renderFiles(mid,qi);
+
+    // Subir a Supabase Storage si hay sesión y diagnóstico activo
+    if(SB && SB_SESSION && diagId){
+      const url = await sbSubirArchivo(f, clienteId, diagId, modKey, qi);
+      // Actualizar el entry con la URL real
+      const idx = ST.files[key].indexOf(tempEntry);
+      if(idx >= 0){
+        ST.files[key][idx] = { name:f.name, size:f.size, url, uploading:false };
+      }
+    } else {
+      // Sin Supabase: guardar solo localmente (funciona en demo)
+      const idx = ST.files[key].indexOf(tempEntry);
+      if(idx >= 0) ST.files[key][idx] = { name:f.name, size:f.size, url:null, uploading:false };
+      if(!SB || !SB_SESSION) toast('📎 '+f.name+' guardado localmente (sin sesión activa)');
+    }
+    renderFiles(mid,qi);
+    stGuardar();
+  }
+  // Limpiar el input para permitir volver a seleccionar el mismo archivo
+  if(e.target) e.target.value = '';
 }
 function renderFiles(mid,qi){
   const key=`${mid}_${qi}`;
   const el=document.getElementById('fl-'+key);if(!el)return;
-  el.innerHTML=(ST.files[key]||[]).map((f,i)=>`
-    <div class="fitem">
-      <span>${f.name.endsWith('.pdf')?'📄':f.name.match(/xlsx?/i)?'📊':f.name.match(/docx?/i)?'📝':'🖼'}</span>
-      <span class="fname" title="${f.name}">${f.name}</span>
-      <span class="fsz">${(f.size/1024).toFixed(0)} KB</span>
-      <span class="fdel" onclick="delF('${key}',${i})">✕</span>
-    </div>`).join('');
+  el.innerHTML=(ST.files[key]||[]).map((f,i)=>{
+    const icon=f.name.endsWith('.pdf')?'📄':f.name.match(/xlsx?/i)?'📊':f.name.match(/docx?/i)?'📝':f.name.match(/png|jpg|jpeg|webp/i)?'🖼':'📎';
+    const kb=(f.size/1024).toFixed(0);
+    const uploading=f.uploading===true;
+    const hasUrl=f.url&&f.url.startsWith('http');
+    return `<div class="fitem" style="${uploading?'opacity:.6':''}">
+      <span>${uploading?'⏳':icon}</span>
+      ${hasUrl
+        ? `<a class="fname" href="${f.url}" target="_blank" rel="noopener" title="Abrir ${f.name}" style="color:var(--teal);text-decoration:none">${f.name}</a>`
+        : `<span class="fname" title="${f.name}">${f.name}</span>`}
+      <span class="fsz">${kb} KB</span>
+      ${uploading?'<span class="fsz">subiendo…</span>'
+        :`<span class="fdel" onclick="delF('${key}',${i},event)" title="Eliminar">✕</span>`}
+    </div>`;
+  }).join('');
 }
-function delF(key,i){ST.files[key].splice(i,1);const p=key.split('_');renderFiles(p[0],p[1]);}
+async function delF(key,i,ev){
+  if(ev) ev.stopPropagation();
+  const entry = (ST.files[key]||[])[i];
+  if(!entry) return;
+  // Borrar del Storage si tiene URL
+  if(entry.url && SB && SB_SESSION){
+    try{
+      // Extraer path relativo de la URL pública
+      const url = entry.url;
+      const bucketMarker = '/ebitq-documentos/';
+      const pathStart = url.indexOf(bucketMarker);
+      if(pathStart >= 0){
+        const storagePath = decodeURIComponent(url.slice(pathStart + bucketMarker.length));
+        const { error } = await SB.storage.from('ebitq-documentos').remove([storagePath]);
+        if(error) console.warn('delF storage error:', error);
+        // Borrar de archivos_evidencia
+        const p = key.split('_');
+        await SB.from('archivos_evidencia').delete()
+          .eq('diagnostico_id', window._DIAG_ID)
+          .eq('nombre_archivo', entry.name);
+      }
+    } catch(e){ console.warn('delF error:', e); }
+  }
+  ST.files[key].splice(i,1);
+  const p=key.split('_');
+  renderFiles(parseInt(p[0]), parseInt(p[1]));
+  stGuardar();
+  toast('🗑 Archivo eliminado');
+}
 
 /* ── RESULTS ── */
 function buildResults(){
@@ -6952,6 +7016,37 @@ ${roiRowsHTML}
   win.document.write(html);win.document.close();
   win.onload=()=>setTimeout(()=>win.print(),800);
   toast('📄 Reporte generado — se abrirá el diálogo de impresión/PDF');
+}
+
+/* ── RESTAURAR ARCHIVOS DESDE SUPABASE STORAGE ── */
+async function sbRestaurarArchivos(diagId){
+  if(!SB || !SB_SESSION || !diagId) return;
+  try{
+    const { data, error } = await SB.from('archivos_evidencia')
+      .select('modulo_id, pregunta_idx, nombre_archivo, tamano_bytes, url_storage')
+      .eq('diagnostico_id', diagId)
+      .order('created_at', { ascending: true });
+    if(error || !data?.length) return;
+
+    // Reconstruir ST.files con los archivos guardados en Supabase
+    data.forEach(row => {
+      const mid = getMods().find(m => m.k === row.modulo_id)?.id;
+      if(!mid) return;
+      const key = `${mid}_${row.pregunta_idx}`;
+      if(!ST.files[key]) ST.files[key] = [];
+      // Evitar duplicados por nombre
+      if(!ST.files[key].some(f => f.name === row.nombre_archivo)){
+        ST.files[key].push({
+          name:      row.nombre_archivo,
+          size:      row.tamano_bytes || 0,
+          url:       row.url_storage  || null,
+          uploading: false,
+        });
+      }
+      renderFiles(mid, row.pregunta_idx);
+    });
+    console.log(`✅ ${data.length} archivos restaurados desde Supabase`);
+  } catch(e){ console.warn('sbRestaurarArchivos error:', e); }
 }
 
 /* ── SIDEBAR MÓVIL ── */
